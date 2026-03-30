@@ -111,11 +111,9 @@ def trends_entry_kb(niche_label: str = "") -> InlineKeyboardMarkup:
 def trend_topics_kb(trends: list[dict]) -> InlineKeyboardMarkup:
     """One button per trend + refresh. Indexes used as callback data (no title in data)."""
     b = InlineKeyboardBuilder()
-    for i, t in enumerate(trends[:5]):
-        label = t.get("title", f"Тренд #{i+1}")
-        display = (label[:48] + "…") if len(label) > 50 else label
+    for i in range(min(len(trends), 5)):
         b.row(InlineKeyboardButton(
-            text=f"✏️ {display}",
+            text=f"{i+1} Написать пост",
             callback_data=f"trend:write:{i}",
         ))
     b.row(InlineKeyboardButton(text="🔄 Обновить тренды", callback_data="trend:refresh"))
@@ -126,11 +124,9 @@ def trend_topics_kb(trends: list[dict]) -> InlineKeyboardMarkup:
 def topic_search_kb(topics: list[dict]) -> InlineKeyboardMarkup:
     """One button per found topic (3 items) + nav buttons."""
     b = InlineKeyboardBuilder()
-    for i, t in enumerate(topics[:3]):
-        label = t.get("title", f"Тема #{i+1}")
-        display = (label[:48] + "…") if len(label) > 50 else label
+    for i in range(min(len(topics), 3)):
         b.row(InlineKeyboardButton(
-            text=f"✏️ {display}",
+            text=f"{i+1} Написать пост",
             callback_data=f"topicsearch:write:{i}",
         ))
     b.row(

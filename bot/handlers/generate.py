@@ -518,8 +518,7 @@ async def cb_image_generate(callback: CallbackQuery, state: FSMContext) -> None:
         photo = image_data  # URL string
     await callback.message.answer_photo(
         photo=photo,
-        caption=f"🖼 Картинка к посту\n\n_{prompt}_",
-        parse_mode="Markdown",
+        caption="🖼 Картинка к посту",
     )
 
 

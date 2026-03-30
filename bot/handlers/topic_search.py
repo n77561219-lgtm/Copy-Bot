@@ -41,7 +41,7 @@ async def handle_topic_query(message: Message, state: FSMContext) -> None:
 
     lines = [f"🔍 *Тренды по теме: {query}*\n"]
     for i, t in enumerate(topics, 1):
-        lines.append(f"{i}. *{t['title']}*\n↳ _{t['angle']}_\n")
+        lines.append(f"{i}. *{t['title']}*\n_{t['angle']}_\n")
 
     await status.delete()
     await message.answer(

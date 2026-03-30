@@ -39,7 +39,7 @@ async def _fetch_and_show_trends(target: Message, state: FSMContext) -> None:
 
     lines = ["🔥 *Актуальные тренды прямо сейчас:*\n"]
     for i, t in enumerate(trends, 1):
-        lines.append(f"{i}. *{t['title']}*\n↳ _{t['angle']}_\n")
+        lines.append(f"{i}. *{t['title']}*\n_{t['angle']}_\n")
     text = "\n".join(lines)
 
     await status.delete()

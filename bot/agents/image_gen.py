@@ -42,6 +42,23 @@ def _extract_image(data: dict) -> bytes | str:
     logger.info("Full message keys: %s", list(message.keys()))
     logger.info("Image response content type=%s value=%s", type(content).__name__, str(content)[:500])
 
+    # --- message.images (OpenRouter: [{"type":"image_url","image_url":{"url":"data:..."}}]) ---
+    for img in message.get("images", []) or []:
+        if not isinstance(img, dict):
+            continue
+        if img.get("type") == "image_url":
+            url = img["image_url"]["url"]
+            if url.startswith("data:"):
+                return base64.b64decode(url.split(",", 1)[1])
+            return url
+        if "url" in img:
+            url = img["url"]
+            if url.startswith("data:"):
+                return base64.b64decode(url.split(",", 1)[1])
+            return url
+        if "b64_json" in img:
+            return base64.b64decode(img["b64_json"])
+
     # --- list of content blocks ---
     if isinstance(content, list):
         for block in content:

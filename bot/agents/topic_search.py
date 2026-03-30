@@ -1,4 +1,5 @@
 """Topic search agent — converts user query to YouTube hashtags, scrapes via Apify, summarizes with LLM."""
+import asyncio
 import json
 import httpx
 
@@ -31,6 +32,26 @@ async def _query_to_hashtags(query: str) -> list[str]:
     return json.loads(clean[start:end])
 
 
+async def _fetch_dataset(run_id: str, token: str) -> list[dict]:
+    """Poll until the Apify run finishes, then fetch dataset items."""
+    status_url = f"https://api.apify.com/v2/actor-runs/{run_id}"
+    dataset_url = f"https://api.apify.com/v2/actor-runs/{run_id}/dataset/items"
+    params = {"token": token}
+    async with httpx.AsyncClient(timeout=30) as client:
+        for _ in range(24):  # up to 2 minutes (24 × 5s)
+            await asyncio.sleep(5)
+            r = await client.get(status_url, params=params)
+            r.raise_for_status()
+            status = r.json().get("data", {}).get("status", "")
+            if status == "SUCCEEDED":
+                dr = await client.get(dataset_url, params=params)
+                dr.raise_for_status()
+                return dr.json()
+            if status in ("FAILED", "ABORTED", "TIMED-OUT"):
+                raise RuntimeError(f"Apify run {status}")
+    raise RuntimeError("Apify run timed out after 2 minutes")
+
+
 async def _scrape_youtube(hashtags: list[str]) -> list[dict]:
     token = settings.apify_token
     if not token:
@@ -48,7 +69,16 @@ async def _scrape_youtube(hashtags: list[str]) -> list[dict]:
         if resp.status_code == 402:
             raise RuntimeError("Недостаточно кредитов Apify — apify.com/billing")
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+
+    # 200 → finished, returns list of items directly
+    if isinstance(data, list):
+        return data
+    # 201 → run started but not finished yet; poll until done
+    run_id = (data.get("data") or data).get("id") if isinstance(data, dict) else None
+    if run_id:
+        return await _fetch_dataset(run_id, token)
+    raise RuntimeError(f"Unexpected Apify response: {str(data)[:200]}")
 
 
 async def _summarize_topics(query: str, videos: list[dict]) -> list[dict]:
