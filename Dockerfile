@@ -7,6 +7,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN mkdir -p data/uploads
+RUN mkdir -p data/uploads data/style_profiles
 
 CMD ["python", "-m", "bot.main"]
