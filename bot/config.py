@@ -20,9 +20,11 @@ class Settings(BaseSettings):
     # Apify
     apify_token: str = ""
 
+    # Database
+    database_url: str = "postgresql://copybot_user:copybot_pass_2026@localhost:5432/copybot"
+
     # Storage
-    db_path: str = "data/bot.db"
-    style_profile_path: str = "data/style_profile.json"
+    style_profiles_dir: str = "data/style_profiles"
     uploads_dir: str = "data/uploads"
 
     @property
@@ -42,5 +44,5 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-os.makedirs(os.path.dirname(settings.db_path) or ".", exist_ok=True)
+os.makedirs(settings.style_profiles_dir, exist_ok=True)
 os.makedirs(settings.uploads_dir, exist_ok=True)

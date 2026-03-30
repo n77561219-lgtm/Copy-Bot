@@ -40,8 +40,12 @@ class S(StatesGroup):
 # Helpers
 # ─────────────────────────────────────────────
 
-def _load_style_profile() -> dict:
-    path = settings.style_profile_path
+def _style_profile_path(user_id: int) -> str:
+    return os.path.join(settings.style_profiles_dir, f"{user_id}.json")
+
+
+def _load_style_profile(user_id: int) -> dict:
+    path = _style_profile_path(user_id)
     if not os.path.exists(path):
         return {}
     with open(path, encoding="utf-8") as f:
@@ -59,16 +63,20 @@ async def _generate_post(
     post_type: str = "мнение",
     previous_draft: str = "",
     feedback: str = "",
+    user_id: int | None = None,
 ) -> None:
-    style_profile = _load_style_profile()
+    if user_id is None:
+        user_id = message.from_user.id
+
+    style_profile = _load_style_profile(user_id)
     if not style_profile:
         await message.answer(_no_style_msg())
         return
 
     # Load user settings
-    post_length  = await get_setting("post_length")   # short | medium | long
-    show_score   = await get_setting("show_score")    # yes | no
-    critic_iters = int(await get_setting("critic_iters"))  # 1 | 2
+    post_length  = await get_setting(user_id, "post_length")
+    show_score   = await get_setting(user_id, "show_score")
+    critic_iters = int(await get_setting(user_id, "critic_iters"))
 
     status = await message.answer("🔍 Исследую тему...")
     try:
@@ -158,10 +166,10 @@ async def menu_plan(message: Message, state: FSMContext) -> None:
     await _show_upcoming(message)
 
 
-
 @router.message(F.text == MENU_STYLE)
 async def menu_style(message: Message) -> None:
-    path = settings.style_profile_path
+    user_id = message.from_user.id
+    path = _style_profile_path(user_id)
     if not os.path.exists(path):
         await message.answer(
             "🎨 Стиль не загружен.\n\n"
@@ -186,7 +194,6 @@ async def menu_style(message: Message) -> None:
     )
 
 
-
 @router.message(F.text == MENU_HELP)
 async def menu_help(message: Message) -> None:
     from bot.handlers.start import cmd_help
@@ -205,6 +212,7 @@ async def handle_post_topic(message: Message, state: FSMContext) -> None:
 
 @router.message(F.text, ~F.text.startswith("/"))
 async def handle_text(message: Message, state: FSMContext) -> None:
+    user_id = message.from_user.id
     current = await state.get_state()
 
     # User is sending a custom edit instruction
@@ -214,7 +222,7 @@ async def handle_text(message: Message, state: FSMContext) -> None:
         if not post:
             await state.clear()
             return
-        style_profile = _load_style_profile()
+        style_profile = _load_style_profile(user_id)
         status = await message.answer("✏️ Редактирую...")
         edited = await run_editor(
             post=post,
@@ -236,7 +244,7 @@ async def handle_text(message: Message, state: FSMContext) -> None:
         await _generate_post(message, state, dispatch["topic"] or message.text)
 
     elif intent == "EDIT_POST":
-        style_profile = _load_style_profile()
+        style_profile = _load_style_profile(user_id)
         if not style_profile:
             await message.answer(_no_style_msg())
             return
@@ -272,8 +280,10 @@ async def handle_text(message: Message, state: FSMContext) -> None:
 # Content plan
 # ─────────────────────────────────────────────
 
-async def _create_plan(message: Message, state: FSMContext, days: int) -> None:
-    style_profile = _load_style_profile()
+async def _create_plan(message: Message, state: FSMContext, days: int, user_id: int | None = None) -> None:
+    if user_id is None:
+        user_id = message.from_user.id
+    style_profile = _load_style_profile(user_id)
     if not style_profile:
         await message.answer(_no_style_msg())
         return
@@ -313,7 +323,8 @@ async def cmd_show_plan(message: Message) -> None:
 
 
 async def _show_plan(message: Message) -> None:
-    plan = await get_content_plan()
+    user_id = message.from_user.id
+    plan = await get_content_plan(user_id)
     if not plan:
         await message.answer("📅 Контент-план пуст.\nИспользуй /plan чтобы создать его.")
         return
@@ -331,9 +342,10 @@ async def _show_plan(message: Message) -> None:
 
 @router.callback_query(F.data == "post:save")
 async def cb_save(callback: CallbackQuery, state: FSMContext) -> None:
+    user_id = callback.from_user.id
     data = await state.get_data()
     if data.get("current_post"):
-        await save_post(data["current_post"], data.get("current_topic", ""))
+        await save_post(user_id, data["current_post"], data.get("current_topic", ""))
     await callback.message.edit_reply_markup(reply_markup=None)
     await callback.answer("✅ Пост сохранён!")
     await state.clear()
@@ -366,20 +378,25 @@ async def cb_regenerate(callback: CallbackQuery, state: FSMContext) -> None:
         return
     await callback.answer("🔄 Генерирую...")
     await callback.message.edit_reply_markup(reply_markup=None)
-    await _generate_post(callback.message, state, topic, data.get("post_type", "мнение"))
+    await _generate_post(
+        callback.message, state, topic, data.get("post_type", "мнение"),
+        user_id=callback.from_user.id,
+    )
 
 
 @router.callback_query(F.data == "post:add_to_plan")
 async def cb_add_to_plan(callback: CallbackQuery, state: FSMContext) -> None:
+    user_id = callback.from_user.id
     data = await state.get_data()
     if data.get("current_post"):
-        await save_post(data["current_post"], data.get("current_topic", ""))
+        await save_post(user_id, data["current_post"], data.get("current_topic", ""))
     await callback.answer("📅 Сохранено!")
     await callback.message.edit_reply_markup(reply_markup=None)
 
 
 @router.callback_query(F.data.in_({"edit:shorter", "edit:longer", "edit:punchier", "edit:human", "edit:grammar"}))
 async def cb_edit_mode(callback: CallbackQuery, state: FSMContext) -> None:
+    user_id = callback.from_user.id
     data = await state.get_data()
     post = data.get("current_post", "")
     if not post:
@@ -394,7 +411,7 @@ async def cb_edit_mode(callback: CallbackQuery, state: FSMContext) -> None:
         "edit:grammar":  "grammar",
     }
     mode = mode_map[callback.data]
-    style_profile = _load_style_profile()
+    style_profile = _load_style_profile(user_id)
 
     await callback.answer("✏️ Редактирую...")
     await callback.message.edit_reply_markup(reply_markup=None)
@@ -425,10 +442,11 @@ async def cb_edit_custom(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(F.data == "plan:save")
 async def cb_plan_save(callback: CallbackQuery, state: FSMContext) -> None:
+    user_id = callback.from_user.id
     data = await state.get_data()
     plan = data.get("pending_plan", [])
     if plan:
-        await save_content_plan(plan)
+        await save_content_plan(user_id, plan)
         await callback.answer("✅ План сохранён!")
     else:
         await callback.answer("❌ Нет плана")
@@ -451,14 +469,14 @@ async def cb_style_upload(callback: CallbackQuery) -> None:
 async def cb_plan_regenerate(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer("🔄 Пересоздаю...")
     await callback.message.edit_reply_markup(reply_markup=None)
-    await _create_plan(callback.message, state, 7)
+    await _create_plan(callback.message, state, 7, user_id=callback.from_user.id)
 
 
 @router.callback_query(F.data == "plan:ai_generate")
 async def cb_plan_ai(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer("🤖 Генерирую...")
     await callback.message.edit_reply_markup(reply_markup=None)
-    await _create_plan(callback.message, state, 7)
+    await _create_plan(callback.message, state, 7, user_id=callback.from_user.id)
 
 
 @router.callback_query(F.data == "plan:show_all")
@@ -473,7 +491,6 @@ async def cb_plan_all(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data.startswith("plan:write:"))
 async def cb_plan_write(callback: CallbackQuery, state: FSMContext) -> None:
-    from datetime import date as date_type
     date_str = callback.data.split("plan:write:")[1]
     all_posts = get_all()
     post = next((p for p in all_posts if p.date.isoformat() == date_str), None)
@@ -487,6 +504,7 @@ async def cb_plan_write(callback: CallbackQuery, state: FSMContext) -> None:
         topic=post.topic,
         post_type=post.fmt or "мнение",
         feedback=post.angle,
+        user_id=callback.from_user.id,
     )
 
 

@@ -19,17 +19,17 @@ _SCORE_LABELS   = {"yes": "Показывать ✅", "no": "Скрыть ❌"}
 _ITERS_LABELS   = {"1": "1 проход", "2": "2 прохода"}
 
 
-async def get_setting(key: str) -> str:
-    val = await get_preference(key)
+async def get_setting(user_id: int, key: str) -> str:
+    val = await get_preference(user_id, key)
     return val if val is not None else DEFAULTS[key]
 
 
 # ── Keyboard ───────────────────────────────────────────────────────────────────
 
-async def settings_keyboard() -> InlineKeyboardMarkup:
-    length  = await get_setting("post_length")
-    score   = await get_setting("show_score")
-    iters   = await get_setting("critic_iters")
+async def settings_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    length  = await get_setting(user_id, "post_length")
+    score   = await get_setting(user_id, "show_score")
+    iters   = await get_setting(user_id, "critic_iters")
 
     b = InlineKeyboardBuilder()
     b.row(InlineKeyboardButton(
@@ -49,9 +49,10 @@ async def settings_keyboard() -> InlineKeyboardMarkup:
 
 
 async def _show_settings(message: Message) -> None:
+    user_id = message.from_user.id
     await message.answer(
         "⚙️ Настройки\n\nНажми на параметр чтобы изменить:",
-        reply_markup=await settings_keyboard(),
+        reply_markup=await settings_keyboard(user_id),
     )
 
 
@@ -64,31 +65,34 @@ async def menu_settings(message: Message) -> None:
 
 @router.callback_query(F.data == "settings:length:cycle")
 async def cb_length(callback: CallbackQuery) -> None:
+    user_id = callback.from_user.id
     order = ["short", "medium", "long"]
-    current = await get_setting("post_length")
+    current = await get_setting(user_id, "post_length")
     next_val = order[(order.index(current) + 1) % len(order)]
-    await set_preference("post_length", next_val)
-    await callback.message.edit_reply_markup(reply_markup=await settings_keyboard())
+    await set_preference(user_id, "post_length", next_val)
+    await callback.message.edit_reply_markup(reply_markup=await settings_keyboard(user_id))
     await callback.answer(f"Длина: {_LENGTH_LABELS[next_val]}")
 
 
 @router.callback_query(F.data == "settings:score:cycle")
 async def cb_score(callback: CallbackQuery) -> None:
+    user_id = callback.from_user.id
     order = ["yes", "no"]
-    current = await get_setting("show_score")
+    current = await get_setting(user_id, "show_score")
     next_val = order[(order.index(current) + 1) % len(order)]
-    await set_preference("show_score", next_val)
-    await callback.message.edit_reply_markup(reply_markup=await settings_keyboard())
+    await set_preference(user_id, "show_score", next_val)
+    await callback.message.edit_reply_markup(reply_markup=await settings_keyboard(user_id))
     await callback.answer(f"Оценка: {_SCORE_LABELS[next_val]}")
 
 
 @router.callback_query(F.data == "settings:iters:cycle")
 async def cb_iters(callback: CallbackQuery) -> None:
+    user_id = callback.from_user.id
     order = ["1", "2"]
-    current = await get_setting("critic_iters")
+    current = await get_setting(user_id, "critic_iters")
     next_val = order[(order.index(current) + 1) % len(order)]
-    await set_preference("critic_iters", next_val)
-    await callback.message.edit_reply_markup(reply_markup=await settings_keyboard())
+    await set_preference(user_id, "critic_iters", next_val)
+    await callback.message.edit_reply_markup(reply_markup=await settings_keyboard(user_id))
     await callback.answer(f"Итерации: {_ITERS_LABELS[next_val]}")
 
 

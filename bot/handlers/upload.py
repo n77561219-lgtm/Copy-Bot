@@ -14,8 +14,13 @@ _ALLOWED_EXTENSIONS = {".json", ".md", ".txt"}
 _MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
+def _style_profile_path(user_id: int) -> str:
+    return os.path.join(settings.style_profiles_dir, f"{user_id}.json")
+
+
 @router.message(F.document)
 async def handle_document(message: Message) -> None:
+    user_id = message.from_user.id
     doc: Document = message.document
     filename = doc.file_name or "export.txt"
     ext = os.path.splitext(filename)[1].lower()
@@ -66,13 +71,14 @@ async def handle_document(message: Message) -> None:
                 )
                 return
             await status_msg.edit_text(f"📊 Найдено {len(posts)} постов. Анализирую стиль...")
-            await save_style_examples(posts, filename)
+            await save_style_examples(user_id, posts, filename)
             style_profile = await run_style_analyst(posts)
-            total = await get_style_examples_count()
+            total = await get_style_examples_count(user_id)
             source_label = "посты канала"
             count_line = f"📝 Постов: {len(posts)} (всего в базе: {total})\n"
 
-        async with aiofiles.open(settings.style_profile_path, "w", encoding="utf-8") as f:
+        profile_path = _style_profile_path(user_id)
+        async with aiofiles.open(profile_path, "w", encoding="utf-8") as f:
             await f.write(json.dumps(style_profile, ensure_ascii=False, indent=2))
 
         tone = style_profile.get("tone", {}).get("primary", "не определён")

@@ -43,7 +43,7 @@ class AuthMiddleware(BaseMiddleware):
 
 
 async def main() -> None:
-    await init_db()
+    await init_db(settings.database_url)
 
     bot = Bot(token=settings.telegram_bot_token)
     dp = Dispatcher(storage=MemoryStorage())
