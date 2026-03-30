@@ -1,0 +1,19 @@
+.env
+.env.*
+node_modules/
+
+# База данных и пользовательские данные
+data/bot.db
+data/uploads/
+data/style_profile.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
