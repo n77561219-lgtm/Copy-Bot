@@ -1,26 +1,35 @@
-import os
 from aiogram import Router
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
-from bot.config import settings
-from bot.keyboards import main_menu, style_keyboard
+from bot.database import create_trial, get_subscription
+from bot.keyboards import main_menu, subscribe_kb
 
 router = Router()
 
 
-def _style_loaded() -> bool:
-    return os.path.exists(settings.style_profile_path)
-
-
 @router.message(CommandStart())
 async def cmd_start(message: Message) -> None:
+    user_id = message.from_user.id
+    await create_trial(user_id)
+
+    sub = await get_subscription(user_id)
+    from datetime import datetime, timezone
+    if sub and sub["plan"] == "trial" and sub["expires_at"] > datetime.now(timezone.utc):
+        days_left = (sub["expires_at"] - datetime.now(timezone.utc)).days
+        trial_note = f"\n\n⏳ Пробный период: ещё *{days_left} дн.*"
+    else:
+        trial_note = ""
+
     await message.answer(
         "👋 Привет! Я твой персональный копирайтер.\n\n"
         "Я умею:\n"
         "✍️ Писать посты в твоём стиле\n"
         "📋 Создавать контент-планы\n"
-        "🔧 Редактировать тексты\n\n"
-        "Для начала загрузи примеры своих постов через «Мой стиль», и я начну писать как ты.",
+        "🔥 Находить тренды для постов\n"
+        "🖼 Генерировать картинки\n\n"
+        "Для начала загрузи примеры своих постов через «Мой стиль», и я начну писать как ты."
+        + trial_note,
+        parse_mode="Markdown",
         reply_markup=main_menu(),
     )
 

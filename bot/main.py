@@ -13,6 +13,8 @@ from bot.handlers import start, upload, generate
 from bot.handlers import settings as settings_handler
 from bot.handlers import trends as trends_handler
 from bot.handlers import topic_search as topic_search_handler
+from bot.handlers import payment as payment_handler
+from bot.subscription_middleware import SubscriptionMiddleware
 
 logging.basicConfig(
     level=logging.INFO,
@@ -57,7 +59,12 @@ async def main() -> None:
     else:
         logger.info("Auth disabled — all users allowed")
 
+    sub_mw = SubscriptionMiddleware()
+    dp.message.middleware(sub_mw)
+    dp.callback_query.middleware(sub_mw)
+
     dp.include_router(start.router)
+    dp.include_router(payment_handler.router)
     dp.include_router(upload.router)
     dp.include_router(settings_handler.router)
     dp.include_router(trends_handler.router)

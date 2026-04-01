@@ -141,3 +141,10 @@ def next_topics_kb() -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     b.row(InlineKeyboardButton(text="📤 Загрузить стиль", callback_data="style:upload_hint"))
     return b.as_markup()
+
+
+def subscribe_kb() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.row(InlineKeyboardButton(text="💳 Оформить подписку — 490 Stars", callback_data="subscribe"))
+    b.row(InlineKeyboardButton(text="ℹ️ Моя подписка", callback_data="subscription_info"))
+    return b.as_markup()
