@@ -12,6 +12,7 @@ MENU_TRENDS   = "🔥 Тренды"
 MENU_SEARCH   = "🔍 Поиск по теме"
 MENU_STYLE    = "🧠 Мой стиль"
 MENU_SETTINGS = "⚙️ Настройки"
+MENU_PROFILE  = "👤 Профиль"
 MENU_HELP     = "❓ Помощь"
 
 
@@ -21,7 +22,7 @@ def main_menu() -> ReplyKeyboardMarkup:
             [KeyboardButton(text=MENU_WRITE),    KeyboardButton(text=MENU_PLAN)],
             [KeyboardButton(text=MENU_TRENDS),   KeyboardButton(text=MENU_SEARCH)],
             [KeyboardButton(text=MENU_STYLE),    KeyboardButton(text=MENU_SETTINGS)],
-            [KeyboardButton(text=MENU_HELP)],
+            [KeyboardButton(text=MENU_PROFILE),  KeyboardButton(text=MENU_HELP)],
         ],
         resize_keyboard=True,
         is_persistent=True,

@@ -59,28 +59,3 @@ async def successful_payment(message: Message) -> None:
     )
 
 
-@router.callback_query(F.data == "subscription_info")
-async def cb_subscription_info(callback: CallbackQuery) -> None:
-    from datetime import datetime, timezone
-    sub = await get_subscription(callback.from_user.id)
-
-    if not sub:
-        text = "У тебя нет активной подписки."
-        markup = subscribe_kb()
-    else:
-        expires = sub["expires_at"]
-        days_left = (expires - datetime.now(timezone.utc)).days
-        plan_name = "Пробный период" if sub["plan"] == "trial" else "Платная подписка"
-        status = "✅ Активна" if sub["status"] == "active" and expires > datetime.now(timezone.utc) else "❌ Истекла"
-
-        text = (
-            f"📋 *Подписка*\n\n"
-            f"Тариф: {plan_name}\n"
-            f"Статус: {status}\n"
-            f"До: {expires.strftime('%d.%m.%Y')}\n"
-            f"Осталось дней: {max(days_left, 0)}"
-        )
-        markup = subscribe_kb() if days_left <= 3 else None
-
-    await callback.message.answer(text, parse_mode="Markdown", reply_markup=markup)
-    await callback.answer()
