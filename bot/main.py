@@ -16,6 +16,8 @@ from bot.handlers import topic_search as topic_search_handler
 from bot.handlers import payment as payment_handler
 from bot.handlers import profile as profile_handler
 from bot.handlers import admin as admin_handler
+from bot.handlers import referral as referral_handler
+from bot.handlers import autopublish as autopublish_handler
 from bot.subscription_middleware import SubscriptionMiddleware
 
 logging.basicConfig(
@@ -69,6 +71,8 @@ async def main() -> None:
     dp.include_router(admin_handler.router)
     dp.include_router(payment_handler.router)
     dp.include_router(profile_handler.router)
+    dp.include_router(referral_handler.router)
+    dp.include_router(autopublish_handler.router)
     dp.include_router(upload.router)
     dp.include_router(settings_handler.router)
     dp.include_router(trends_handler.router)

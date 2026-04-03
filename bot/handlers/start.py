@@ -19,6 +19,20 @@ def _onboarding_kb() -> InlineKeyboardBuilder:
     return b.as_markup()
 
 
+@router.message(CommandStart(deep_link=True))
+async def cmd_start_ref(message: Message) -> None:
+    """Handle referral deep link: /start ref_<user_id>"""
+    payload = message.text.split(maxsplit=1)[1] if " " in message.text else ""
+    if payload.startswith("ref_"):
+        try:
+            referrer_id = int(payload[4:])
+            from bot.handlers.referral import process_referral_start
+            await process_referral_start(referrer_id, message.from_user.id, message.bot)
+        except (ValueError, IndexError):
+            pass
+    await cmd_start(message)
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message) -> None:
     user_id = message.from_user.id

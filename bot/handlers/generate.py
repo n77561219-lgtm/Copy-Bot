@@ -40,13 +40,16 @@ class S(StatesGroup):
 # Helpers
 # ─────────────────────────────────────────────
 
-def _style_profile_path(user_id: int) -> str:
-    return os.path.join(settings.style_profiles_dir, f"{user_id}.json")
-
-
-def _load_style_profile(user_id: int) -> dict:
-    path = _style_profile_path(user_id)
+async def _load_style_profile(user_id: int) -> dict:
+    from bot.handlers.upload import style_profile_path, get_active_profile
+    profile_name = await get_active_profile(user_id)
+    path = style_profile_path(user_id, profile_name)
     if not os.path.exists(path):
+        # fallback to legacy path
+        legacy = os.path.join(settings.style_profiles_dir, f"{user_id}.json")
+        if os.path.exists(legacy):
+            with open(legacy, encoding="utf-8") as f:
+                return json.load(f)
         return {}
     with open(path, encoding="utf-8") as f:
         return json.load(f)
@@ -68,7 +71,7 @@ async def _generate_post(
     if user_id is None:
         user_id = message.from_user.id
 
-    style_profile = _load_style_profile(user_id)
+    style_profile = await _load_style_profile(user_id)
     if not style_profile:
         await message.answer(_no_style_msg())
         return
@@ -134,10 +137,15 @@ async def _generate_post(
         if show_score == "yes" else ""
     )
 
+    from bot.database import get_preference, set_preference
+    channel = await get_preference(user_id, "publish_channel")
+    if channel:
+        await set_preference(user_id, "pending_publish_text", draft)
+
     await status.delete()
     await message.answer(
         f"{draft}\n\n{footer}",
-        reply_markup=post_actions_keyboard(),
+        reply_markup=post_actions_keyboard(has_channel=bool(channel)),
     )
     await state.set_state(S.post_shown)
     await state.update_data(current_post=draft, current_topic=topic, post_type=post_type)
@@ -222,7 +230,7 @@ async def handle_text(message: Message, state: FSMContext) -> None:
         if not post:
             await state.clear()
             return
-        style_profile = _load_style_profile(user_id)
+        style_profile = await _load_style_profile(user_id)
         status = await message.answer("✏️ Редактирую...")
         edited = await run_editor(
             post=post,
@@ -244,7 +252,7 @@ async def handle_text(message: Message, state: FSMContext) -> None:
         await _generate_post(message, state, dispatch["topic"] or message.text)
 
     elif intent == "EDIT_POST":
-        style_profile = _load_style_profile(user_id)
+        style_profile = await _load_style_profile(user_id)
         if not style_profile:
             await message.answer(_no_style_msg())
             return
@@ -283,7 +291,7 @@ async def handle_text(message: Message, state: FSMContext) -> None:
 async def _create_plan(message: Message, state: FSMContext, days: int, user_id: int | None = None) -> None:
     if user_id is None:
         user_id = message.from_user.id
-    style_profile = _load_style_profile(user_id)
+    style_profile = await _load_style_profile(user_id)
     if not style_profile:
         await message.answer(_no_style_msg())
         return
@@ -411,7 +419,7 @@ async def cb_edit_mode(callback: CallbackQuery, state: FSMContext) -> None:
         "edit:grammar":  "grammar",
     }
     mode = mode_map[callback.data]
-    style_profile = _load_style_profile(user_id)
+    style_profile = await _load_style_profile(user_id)
 
     await callback.answer("✏️ Редактирую...")
     await callback.message.edit_reply_markup(reply_markup=None)

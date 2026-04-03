@@ -13,6 +13,7 @@ MENU_SEARCH   = "🔍 Поиск по теме"
 MENU_STYLE    = "🧠 Мой стиль"
 MENU_SETTINGS = "⚙️ Настройки"
 MENU_PROFILE  = "👤 Профиль"
+MENU_REFERRAL = "👥 Рефералы"
 MENU_HELP     = "❓ Помощь"
 
 
@@ -22,7 +23,7 @@ def main_menu() -> ReplyKeyboardMarkup:
             [KeyboardButton(text=MENU_WRITE),    KeyboardButton(text=MENU_PLAN)],
             [KeyboardButton(text=MENU_TRENDS),   KeyboardButton(text=MENU_SEARCH)],
             [KeyboardButton(text=MENU_STYLE),    KeyboardButton(text=MENU_SETTINGS)],
-            [KeyboardButton(text=MENU_PROFILE),  KeyboardButton(text=MENU_HELP)],
+            [KeyboardButton(text=MENU_PROFILE),  KeyboardButton(text=MENU_REFERRAL)],
         ],
         resize_keyboard=True,
         is_persistent=True,
@@ -31,7 +32,7 @@ def main_menu() -> ReplyKeyboardMarkup:
 
 # ── Inline keyboards (под сообщениями) ───────────────────────────────────────
 
-def post_actions_keyboard() -> InlineKeyboardMarkup:
+def post_actions_keyboard(has_channel: bool = False) -> InlineKeyboardMarkup:
     """Full action panel shown under every generated post."""
     b = InlineKeyboardBuilder()
     b.row(
@@ -47,6 +48,8 @@ def post_actions_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🔄 Перегенерировать", callback_data="post:regenerate"),
     )
     b.row(InlineKeyboardButton(text="🖼 Картинка", callback_data="image:generate"))
+    if has_channel:
+        b.row(InlineKeyboardButton(text="📢 Опубликовать в канал", callback_data="publish:channel:go"))
     b.row(InlineKeyboardButton(text="✅ Готово", callback_data="post:save"))
     return b.as_markup()
 
@@ -97,6 +100,7 @@ def plan_actions_keyboard(dates: list[str]) -> InlineKeyboardMarkup:
 def style_keyboard() -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     b.row(InlineKeyboardButton(text="📤 Загрузить новый файл", callback_data="style:upload_hint"))
+    b.row(InlineKeyboardButton(text="🔄 Сменить профиль стиля", callback_data="style:switch"))
     return b.as_markup()
 
 

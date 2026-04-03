@@ -75,11 +75,20 @@ CREATE TABLE IF NOT EXISTS usage_log (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS referrals (
+    id           BIGSERIAL PRIMARY KEY,
+    referrer_id  BIGINT NOT NULL,
+    invited_id   BIGINT NOT NULL UNIQUE,
+    bonus_given  BOOLEAN DEFAULT FALSE,
+    created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_style_examples_user ON style_examples(user_id);
 CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id);
 CREATE INDEX IF NOT EXISTS idx_content_plan_user ON content_plan(user_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_expires ON subscriptions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_usage_log_user ON usage_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_id);
 """
 
 
@@ -243,3 +252,58 @@ async def log_usage(user_id: int, action: str) -> None:
             "INSERT INTO usage_log (user_id, action) VALUES ($1, $2)",
             user_id, action,
         )
+
+
+# ── Referrals ─────────────────────────────────────────────────────────────────
+
+async def register_referral(referrer_id: int, invited_id: int) -> bool:
+    """Register invited_id as invited by referrer_id. Returns True if new."""
+    if referrer_id == invited_id:
+        return False
+    async with get_pool().acquire() as conn:
+        result = await conn.execute(
+            """
+            INSERT INTO referrals (referrer_id, invited_id)
+            VALUES ($1, $2)
+            ON CONFLICT (invited_id) DO NOTHING
+            """,
+            referrer_id, invited_id,
+        )
+    return result == "INSERT 0 1"
+
+
+async def give_referral_bonus(referrer_id: int, invited_id: int) -> bool:
+    """Give +7 days to referrer when invited_id activates subscription. Returns True if bonus given."""
+    from datetime import datetime, timedelta, timezone
+    async with get_pool().acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, bonus_given FROM referrals WHERE referrer_id=$1 AND invited_id=$2",
+            referrer_id, invited_id,
+        )
+        if not row or row["bonus_given"]:
+            return False
+        # extend referrer subscription by 7 days
+        await conn.execute(
+            """
+            UPDATE subscriptions
+            SET expires_at = expires_at + INTERVAL '7 days'
+            WHERE user_id = $1
+            """,
+            referrer_id,
+        )
+        await conn.execute(
+            "UPDATE referrals SET bonus_given=TRUE WHERE id=$1",
+            row["id"],
+        )
+    return True
+
+
+async def get_referral_stats(user_id: int) -> dict:
+    async with get_pool().acquire() as conn:
+        total = await conn.fetchval(
+            "SELECT COUNT(*) FROM referrals WHERE referrer_id=$1", user_id
+        ) or 0
+        bonuses = await conn.fetchval(
+            "SELECT COUNT(*) FROM referrals WHERE referrer_id=$1 AND bonus_given=TRUE", user_id
+        ) or 0
+    return {"total": total, "bonuses_earned": bonuses}
