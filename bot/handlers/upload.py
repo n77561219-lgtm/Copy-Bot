@@ -4,9 +4,8 @@ import aiofiles
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message, Document, CallbackQuery
+from aiogram.types import Message, Document, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardButton
 from bot.config import settings
 from bot.database import save_style_examples, get_style_examples_count, get_preference, set_preference
 from bot.parsers import parse_file
