@@ -7,7 +7,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery
 
 from bot.config import settings
-from bot.database import save_post, save_content_plan, get_content_plan
+from bot.database import save_post, save_content_plan, get_content_plan, log_usage
 from bot.content_plan_reader import (
     get_upcoming, get_all, format_upcoming, format_all, mark_done,
 )
@@ -142,6 +142,7 @@ async def _generate_post(
     if channel:
         await set_preference(user_id, "pending_publish_text", draft)
 
+    await log_usage(user_id, "post_generated")
     await status.delete()
     await message.answer(
         f"{draft}\n\n{footer}",
@@ -536,6 +537,7 @@ async def cb_image_generate(callback: CallbackQuery, state: FSMContext) -> None:
             await status.edit_text(f"❌ Ошибка генерации: {err[:200]}")
         return
 
+    await log_usage(callback.from_user.id, "image_generated")
     await status.delete()
     from aiogram.types import BufferedInputFile
     if isinstance(image_data, bytes):

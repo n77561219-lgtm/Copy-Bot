@@ -222,6 +222,32 @@ async def create_trial(user_id: int) -> None:
         )
 
 
+async def ensure_free_plan(user_id: int) -> None:
+    """Downgrade user to free plan if trial expired and no paid plan exists."""
+    from datetime import datetime, timezone
+    async with get_pool().acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT plan, status, expires_at FROM subscriptions WHERE user_id=$1",
+            user_id,
+        )
+        if not row:
+            # No subscription at all — create free
+            await conn.execute(
+                """
+                INSERT INTO subscriptions (user_id, plan, status, expires_at)
+                VALUES ($1, 'free', 'active', 'infinity')
+                ON CONFLICT (user_id) DO NOTHING
+                """,
+                user_id,
+            )
+        elif row["plan"] == "trial" and row["expires_at"] < datetime.now(timezone.utc):
+            # Trial expired — downgrade to free
+            await conn.execute(
+                "UPDATE subscriptions SET plan='free', status='active', expires_at='infinity' WHERE user_id=$1",
+                user_id,
+            )
+
+
 async def get_subscription(user_id: int) -> Optional[dict]:
     async with get_pool().acquire() as conn:
         row = await conn.fetchrow(
@@ -233,39 +259,70 @@ async def get_subscription(user_id: int) -> Optional[dict]:
     return dict(row)
 
 
-async def is_subscribed(user_id: int) -> bool:
-    """Return True if user has an active (non-expired) subscription."""
+async def get_active_plan(user_id: int) -> str:
+    """Return current active plan name: free | trial | basic | standard | pro."""
     from datetime import datetime, timezone
     async with get_pool().acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT status, expires_at FROM subscriptions WHERE user_id=$1",
+            "SELECT plan, status, expires_at FROM subscriptions WHERE user_id=$1",
             user_id,
         )
-    if not row:
-        return False
-    if row["status"] != "active":
-        return False
-    return row["expires_at"] > datetime.now(timezone.utc)
+    if not row or row["status"] != "active":
+        return "free"
+    now = datetime.now(timezone.utc)
+    # free plan has expires_at = 'infinity' — always active
+    if str(row["expires_at"]) == "infinity" or row["expires_at"] > now:
+        return row["plan"]
+    return "free"
 
 
-async def activate_subscription(user_id: int, months: int = 1, payment_id: str = "") -> None:
-    """Activate or extend paid subscription."""
+async def is_subscribed(user_id: int) -> bool:
+    """Return True if user has any active plan (including free)."""
+    plan = await get_active_plan(user_id)
+    return plan != ""  # always True — free plan is always available
+
+
+async def get_monthly_usage(user_id: int, action: str) -> int:
+    """Count usage_log entries for this user/action in the current calendar month."""
+    async with get_pool().acquire() as conn:
+        count = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM usage_log
+            WHERE user_id=$1 AND action=$2
+              AND DATE_TRUNC('month', created_at) = DATE_TRUNC('month', NOW())
+            """,
+            user_id, action,
+        )
+    return count or 0
+
+
+async def activate_subscription(
+    user_id: int,
+    plan: str = "basic",
+    months: int = 1,
+    payment_id: str = "",
+) -> None:
+    """Activate or extend a paid subscription for the given plan."""
     from datetime import datetime, timedelta, timezone
     async with get_pool().acquire() as conn:
         current = await conn.fetchval(
-            "SELECT expires_at FROM subscriptions WHERE user_id=$1 AND status='active'",
+            "SELECT expires_at FROM subscriptions WHERE user_id=$1 AND status='active' AND plan NOT IN ('free','trial')",
             user_id,
         )
-        base = max(current, datetime.now(timezone.utc)) if current else datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc)
+        if current and str(current) != "infinity" and current > now:
+            base = current
+        else:
+            base = now
         new_expires = base + timedelta(days=30 * months)
         await conn.execute(
             """
             INSERT INTO subscriptions (user_id, plan, status, expires_at, payment_id)
-            VALUES ($1, 'paid', 'active', $2, $3)
+            VALUES ($1, $2, 'active', $3, $4)
             ON CONFLICT (user_id) DO UPDATE
-              SET plan='paid', status='active', expires_at=$2, payment_id=$3
+              SET plan=$2, status='active', expires_at=$3, payment_id=$4
             """,
-            user_id, new_expires, payment_id,
+            user_id, plan, new_expires, payment_id,
         )
 
 

@@ -154,8 +154,21 @@ def next_topics_kb() -> InlineKeyboardMarkup:
 
 
 def subscribe_kb() -> InlineKeyboardMarkup:
+    """Legacy single-button — replaced by plans_kb in most places."""
+    return plans_kb()
+
+
+def plans_kb(current_plan: str = "") -> InlineKeyboardMarkup:
+    """Plan selection keyboard shown in paywall and profile."""
+    from bot.plans import PLANS, PAID_PLANS
     b = InlineKeyboardBuilder()
-    b.row(InlineKeyboardButton(text="💳 Оформить подписку — 490 Stars", callback_data="subscribe"))
+    for plan_id in PAID_PLANS:
+        p = PLANS[plan_id]
+        mark = " ✅" if plan_id == current_plan else ""
+        b.row(InlineKeyboardButton(
+            text=f"{p['emoji']} {p['name']} — {p['stars']} Stars{mark}",
+            callback_data=f"subscribe:{plan_id}",
+        ))
     b.row(InlineKeyboardButton(text="ℹ️ Моя подписка", callback_data="subscription_info"))
     return b.as_markup()
 
