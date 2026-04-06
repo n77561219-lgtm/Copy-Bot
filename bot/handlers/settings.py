@@ -44,6 +44,9 @@ async def settings_keyboard(user_id: int) -> InlineKeyboardMarkup:
         text=f"🔄 Итерации правки: {_ITERS_LABELS[iters]}",
         callback_data="settings:iters:cycle"
     ))
+    channel = await get_preference(user_id, "publish_channel")
+    channel_label = f"🔗 Канал: {channel}" if channel else "🔗 Подключить канал"
+    b.row(InlineKeyboardButton(text=channel_label, callback_data="settings:setup_channel"))
     b.row(InlineKeyboardButton(text="↩️ Назад", callback_data="settings:close"))
     return b.as_markup()
 

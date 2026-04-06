@@ -18,6 +18,8 @@ from bot.handlers import profile as profile_handler
 from bot.handlers import admin as admin_handler
 from bot.handlers import referral as referral_handler
 from bot.handlers import autopublish as autopublish_handler
+from bot.handlers import schedule as schedule_handler
+from bot.scheduler import scheduler_loop
 from bot.subscription_middleware import SubscriptionMiddleware
 
 logging.basicConfig(
@@ -73,6 +75,7 @@ async def main() -> None:
     dp.include_router(profile_handler.router)
     dp.include_router(referral_handler.router)
     dp.include_router(autopublish_handler.router)
+    dp.include_router(schedule_handler.router)
     dp.include_router(upload.router)
     dp.include_router(settings_handler.router)
     dp.include_router(trends_handler.router)
@@ -80,6 +83,7 @@ async def main() -> None:
     dp.include_router(generate.router)
 
     logger.info("Bot started")
+    asyncio.create_task(scheduler_loop(bot))
     await dp.start_polling(bot)
 
 

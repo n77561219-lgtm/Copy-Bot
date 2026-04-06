@@ -83,12 +83,35 @@ CREATE TABLE IF NOT EXISTS referrals (
     created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS scheduled_posts (
+    id           BIGSERIAL PRIMARY KEY,
+    user_id      BIGINT       NOT NULL,
+    content      TEXT         NOT NULL,
+    topic        TEXT,
+    channel_id   TEXT         NOT NULL,
+    scheduled_at TIMESTAMPTZ  NOT NULL,
+    status       TEXT         NOT NULL DEFAULT 'pending',
+    attempts     INT          NOT NULL DEFAULT 0,
+    last_error   TEXT,
+    post_id      BIGINT       REFERENCES posts(id),
+    created_at   TIMESTAMPTZ  DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS schedule_slots (
+    id       BIGSERIAL PRIMARY KEY,
+    user_id  BIGINT  NOT NULL,
+    time_utc TIME    NOT NULL,
+    UNIQUE(user_id, time_utc)
+);
+
 CREATE INDEX IF NOT EXISTS idx_style_examples_user ON style_examples(user_id);
 CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id);
 CREATE INDEX IF NOT EXISTS idx_content_plan_user ON content_plan(user_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_expires ON subscriptions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_usage_log_user ON usage_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_id);
+CREATE INDEX IF NOT EXISTS idx_scheduled_posts_due ON scheduled_posts(scheduled_at, status);
+CREATE INDEX IF NOT EXISTS idx_scheduled_posts_user ON scheduled_posts(user_id);
 """
 
 
@@ -307,3 +330,175 @@ async def get_referral_stats(user_id: int) -> dict:
             "SELECT COUNT(*) FROM referrals WHERE referrer_id=$1 AND bonus_given=TRUE", user_id
         ) or 0
     return {"total": total, "bonuses_earned": bonuses}
+
+
+# ── Scheduled posts ───────────────────────────────────────────────────────────
+
+async def add_to_queue(
+    user_id: int,
+    content: str,
+    channel_id: str,
+    scheduled_at,
+    topic: str = "",
+    post_id: int | None = None,
+) -> int:
+    async with get_pool().acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO scheduled_posts (user_id, content, topic, channel_id, scheduled_at, post_id)
+            VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
+            """,
+            user_id, content, topic, channel_id, scheduled_at, post_id,
+        )
+    return row["id"]
+
+
+async def get_user_queue(user_id: int) -> list[dict]:
+    async with get_pool().acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, content, topic, channel_id, scheduled_at, status, attempts
+            FROM scheduled_posts
+            WHERE user_id=$1 AND status='pending'
+            ORDER BY scheduled_at
+            """,
+            user_id,
+        )
+    return [dict(r) for r in rows]
+
+
+async def get_due_scheduled_posts() -> list[dict]:
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    async with get_pool().acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, user_id, content, topic, channel_id, attempts
+            FROM scheduled_posts
+            WHERE status='pending' AND scheduled_at <= $1
+            ORDER BY scheduled_at
+            LIMIT 50
+            """,
+            now,
+        )
+    return [dict(r) for r in rows]
+
+
+async def mark_scheduled_published(schedule_id: int) -> None:
+    async with get_pool().acquire() as conn:
+        await conn.execute(
+            "UPDATE scheduled_posts SET status='published' WHERE id=$1",
+            schedule_id,
+        )
+
+
+async def mark_scheduled_failed(schedule_id: int, error: str) -> None:
+    async with get_pool().acquire() as conn:
+        await conn.execute(
+            "UPDATE scheduled_posts SET status='failed', last_error=$2 WHERE id=$1",
+            schedule_id, error,
+        )
+
+
+async def increment_scheduled_attempts(schedule_id: int, attempts: int, error: str) -> None:
+    async with get_pool().acquire() as conn:
+        await conn.execute(
+            "UPDATE scheduled_posts SET attempts=$2, last_error=$3 WHERE id=$1",
+            schedule_id, attempts, error,
+        )
+
+
+async def reschedule_post(schedule_id: int, minutes: int) -> None:
+    async with get_pool().acquire() as conn:
+        await conn.execute(
+            f"UPDATE scheduled_posts SET scheduled_at = NOW() + INTERVAL '{minutes} minutes' WHERE id=$1",
+            schedule_id,
+        )
+
+
+async def delete_scheduled_post(schedule_id: int, user_id: int) -> bool:
+    async with get_pool().acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM scheduled_posts WHERE id=$1 AND user_id=$2 AND status='pending'",
+            schedule_id, user_id,
+        )
+    return result == "DELETE 1"
+
+
+async def get_queue_stats(user_id: int) -> dict:
+    async with get_pool().acquire() as conn:
+        pending = await conn.fetchval(
+            "SELECT COUNT(*) FROM scheduled_posts WHERE user_id=$1 AND status='pending'", user_id
+        ) or 0
+        published = await conn.fetchval(
+            "SELECT COUNT(*) FROM scheduled_posts WHERE user_id=$1 AND status='published'", user_id
+        ) or 0
+    return {"pending": pending, "published": published}
+
+
+async def is_queue_paused(user_id: int) -> bool:
+    val = await get_preference(user_id, "queue_paused")
+    return val == "1"
+
+
+async def toggle_queue_pause(user_id: int) -> bool:
+    """Toggle pause state. Returns new state (True = paused)."""
+    paused = await is_queue_paused(user_id)
+    await set_preference(user_id, "queue_paused", "0" if paused else "1")
+    return not paused
+
+
+# ── Schedule slots ────────────────────────────────────────────────────────────
+
+async def get_schedule_slots(user_id: int) -> list[str]:
+    """Return list of HH:MM strings (UTC)."""
+    async with get_pool().acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT time_utc FROM schedule_slots WHERE user_id=$1 ORDER BY time_utc",
+            user_id,
+        )
+    return [str(r["time_utc"])[:5] for r in rows]
+
+
+async def add_schedule_slot(user_id: int, time_utc: str) -> bool:
+    """Add HH:MM slot. Returns False if already exists."""
+    from datetime import time
+    h, m = map(int, time_utc.split(":"))
+    t = time(h, m)
+    async with get_pool().acquire() as conn:
+        result = await conn.execute(
+            "INSERT INTO schedule_slots (user_id, time_utc) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            user_id, t,
+        )
+    return result == "INSERT 0 1"
+
+
+async def delete_schedule_slot(user_id: int, time_utc: str) -> bool:
+    async with get_pool().acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM schedule_slots WHERE user_id=$1 AND time_utc=$2::time",
+            user_id, time_utc,
+        )
+    return result == "DELETE 1"
+
+
+async def next_free_slot(user_id: int) -> Optional["datetime"]:
+    """Return next datetime (UTC) from user's schedule slots that has no pending post."""
+    from datetime import datetime, timezone, timedelta
+    slots = await get_schedule_slots(user_id)
+    if not slots:
+        return None
+    queue = await get_user_queue(user_id)
+    taken = {r["scheduled_at"].strftime("%Y-%m-%d %H:%M") for r in queue}
+    now = datetime.now(timezone.utc)
+    for days_ahead in range(14):
+        day = now.date() + timedelta(days=days_ahead)
+        for slot in slots:
+            h, m = map(int, slot.split(":"))
+            candidate = datetime(day.year, day.month, day.day, h, m, tzinfo=timezone.utc)
+            if candidate <= now:
+                continue
+            key = candidate.strftime("%Y-%m-%d %H:%M")
+            if key not in taken:
+                return candidate
+    return None

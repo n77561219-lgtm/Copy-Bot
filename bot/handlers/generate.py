@@ -22,7 +22,7 @@ from bot.agents.image_gen import generate_image
 from bot.keyboards import (
     post_actions_keyboard, edit_actions_keyboard, plan_keyboard, plan_actions_keyboard,
     style_keyboard, main_menu,
-    MENU_WRITE, MENU_PLAN, MENU_STYLE, MENU_HELP,
+    MENU_WRITE, MENU_PLAN, MENU_STYLE, MENU_HELP, MENU_SCHEDULE,
 )
 
 router = Router()

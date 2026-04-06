@@ -14,6 +14,7 @@ MENU_STYLE    = "🧠 Мой стиль"
 MENU_SETTINGS = "⚙️ Настройки"
 MENU_PROFILE  = "👤 Профиль"
 MENU_REFERRAL = "👥 Рефералы"
+MENU_SCHEDULE = "⏰ Расписание"
 MENU_HELP     = "❓ Помощь"
 
 
@@ -24,6 +25,7 @@ def main_menu() -> ReplyKeyboardMarkup:
             [KeyboardButton(text=MENU_TRENDS),   KeyboardButton(text=MENU_SEARCH)],
             [KeyboardButton(text=MENU_STYLE),    KeyboardButton(text=MENU_SETTINGS)],
             [KeyboardButton(text=MENU_PROFILE),  KeyboardButton(text=MENU_REFERRAL)],
+            [KeyboardButton(text=MENU_SCHEDULE)],
         ],
         resize_keyboard=True,
         is_persistent=True,
@@ -49,7 +51,10 @@ def post_actions_keyboard(has_channel: bool = False) -> InlineKeyboardMarkup:
     )
     b.row(InlineKeyboardButton(text="🖼 Картинка", callback_data="image:generate"))
     if has_channel:
-        b.row(InlineKeyboardButton(text="📢 Опубликовать в канал", callback_data="publish:channel:go"))
+        b.row(
+            InlineKeyboardButton(text="📢 Опубликовать сейчас", callback_data="publish:channel:go"),
+            InlineKeyboardButton(text="⏰ В очередь", callback_data="schedule:enqueue"),
+        )
     b.row(InlineKeyboardButton(text="✅ Готово", callback_data="post:save"))
     return b.as_markup()
 
@@ -152,4 +157,39 @@ def subscribe_kb() -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     b.row(InlineKeyboardButton(text="💳 Оформить подписку — 490 Stars", callback_data="subscribe"))
     b.row(InlineKeyboardButton(text="ℹ️ Моя подписка", callback_data="subscription_info"))
+    return b.as_markup()
+
+
+def schedule_main_kb(paused: bool, pending: int) -> InlineKeyboardMarkup:
+    """Main schedule screen keyboard."""
+    b = InlineKeyboardBuilder()
+    b.row(InlineKeyboardButton(text="➕ Добавить слот времени", callback_data="sched:add_slot"))
+    b.row(InlineKeyboardButton(text="🗑 Удалить слот", callback_data="sched:del_slot"))
+    if pending > 0:
+        pause_text = "▶️ Возобновить очередь" if paused else "⏸ Пауза очереди"
+        b.row(InlineKeyboardButton(text=pause_text, callback_data="sched:toggle_pause"))
+    return b.as_markup()
+
+
+def schedule_queue_kb(posts: list[dict]) -> InlineKeyboardMarkup:
+    """List of queued posts with delete buttons."""
+    b = InlineKeyboardBuilder()
+    for post in posts[:10]:
+        topic = (post.get("topic") or "без темы")[:25]
+        dt = post["scheduled_at"].strftime("%d.%m %H:%M")
+        b.row(InlineKeyboardButton(
+            text=f"🗑 {dt} — {topic}",
+            callback_data=f"sched:del_post:{post['id']}",
+        ))
+    return b.as_markup()
+
+
+def schedule_confirm_kb(scheduled_at_str: str) -> InlineKeyboardMarkup:
+    """Confirm adding post to queue."""
+    b = InlineKeyboardBuilder()
+    b.row(
+        InlineKeyboardButton(text="✅ Да, добавить", callback_data=f"sched:confirm:{scheduled_at_str}"),
+        InlineKeyboardButton(text="🕐 Другое время", callback_data="sched:manual_time"),
+    )
+    b.row(InlineKeyboardButton(text="❌ Отмена", callback_data="sched:cancel"))
     return b.as_markup()
