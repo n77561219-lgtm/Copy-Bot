@@ -3,9 +3,19 @@
 All tables are scoped by user_id (Telegram user ID as BIGINT).
 """
 import asyncpg
+from datetime import datetime, timezone
 from typing import Optional
 
 _pool: asyncpg.Pool | None = None
+
+
+def _as_utc(dt: datetime) -> datetime:
+    """Ensure datetime is timezone-aware (UTC). asyncpg may return naive datetimes for TIMESTAMP columns."""
+    if dt is None:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 async def init_db(dsn: str) -> None:
@@ -240,7 +250,7 @@ async def ensure_free_plan(user_id: int) -> None:
                 """,
                 user_id,
             )
-        elif row["plan"] == "trial" and row["expires_at"] < datetime.now(timezone.utc):
+        elif row["plan"] == "trial" and _as_utc(row["expires_at"]) < datetime.now(timezone.utc):
             # Trial expired — downgrade to free
             await conn.execute(
                 "UPDATE subscriptions SET plan='free', status='active', expires_at='infinity' WHERE user_id=$1",
@@ -271,7 +281,7 @@ async def get_active_plan(user_id: int) -> str:
         return "free"
     now = datetime.now(timezone.utc)
     # free plan has expires_at = 'infinity' — always active
-    if str(row["expires_at"]) == "infinity" or row["expires_at"] > now:
+    if str(row["expires_at"]) == "infinity" or _as_utc(row["expires_at"]) > now:
         return row["plan"]
     return "free"
 
