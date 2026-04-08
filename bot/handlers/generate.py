@@ -21,7 +21,7 @@ from bot.agents.planner import run_planner
 from bot.agents.image_gen import generate_image
 from bot.keyboards import (
     post_actions_keyboard, edit_actions_keyboard, plan_keyboard, plan_actions_keyboard,
-    style_keyboard, main_menu,
+    style_keyboard, main_menu, format_choice_kb,
     MENU_WRITE, MENU_PLAN, MENU_STYLE, MENU_HELP, MENU_SCHEDULE,
 )
 
@@ -31,9 +31,20 @@ router = Router()
 class S(StatesGroup):
     post_shown = State()
     waiting_post_topic = State()
+    waiting_format_choice = State()
     waiting_custom_edit = State()
     trends_shown = State()
     topic_search_waiting = State()
+
+
+_FORMAT_MAP = {
+    "expert":      "экспертный пост",
+    "case":        "кейс",
+    "sales":       "продающий пост",
+    "provocation": "провокация",
+    "story":       "сторителлинг",
+    "default":     "мнение",
+}
 
 
 # ─────────────────────────────────────────────
@@ -211,8 +222,32 @@ async def menu_help(message: Message) -> None:
 
 @router.message(S.waiting_post_topic)
 async def handle_post_topic(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    await _generate_post(message, state, topic=message.text)
+    topic = message.text.strip()
+    await state.update_data(current_topic=topic)
+    await state.set_state(S.waiting_format_choice)
+    await message.answer(
+        f"📌 Тема: *{topic}*\n\nВыбери формат поста:",
+        parse_mode="Markdown",
+        reply_markup=format_choice_kb(),
+    )
+
+
+@router.callback_query(F.data.startswith("format:"), S.waiting_format_choice)
+async def cb_format_choice(callback: CallbackQuery, state: FSMContext) -> None:
+    format_key = callback.data.split("format:")[1]
+    post_type = _FORMAT_MAP.get(format_key, "мнение")
+    data = await state.get_data()
+    topic = data.get("current_topic", "")
+    if not topic:
+        await callback.answer("❌ Тема потеряна, введи заново")
+        await state.clear()
+        return
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.answer()
+    await _generate_post(
+        callback.message, state, topic=topic, post_type=post_type,
+        user_id=callback.from_user.id,
+    )
 
 
 # ─────────────────────────────────────────────
@@ -250,7 +285,14 @@ async def handle_text(message: Message, state: FSMContext) -> None:
     intent = dispatch["intent"]
 
     if intent == "WRITE_POST":
-        await _generate_post(message, state, dispatch["topic"] or message.text)
+        topic = dispatch["topic"] or message.text
+        await state.update_data(current_topic=topic)
+        await state.set_state(S.waiting_format_choice)
+        await message.answer(
+            f"📌 Тема: *{topic}*\n\nВыбери формат поста:",
+            parse_mode="Markdown",
+            reply_markup=format_choice_kb(),
+        )
 
     elif intent == "EDIT_POST":
         style_profile = await _load_style_profile(user_id)

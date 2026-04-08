@@ -7,7 +7,8 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, Document, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.config import settings
-from bot.database import save_style_examples, get_style_examples_count, get_preference, set_preference
+from bot.database import save_style_examples, get_style_examples_count, get_preference, set_preference, get_active_plan
+from bot.plans import profiles_limit, get_plan
 from bot.parsers import parse_file
 from bot.agents.style_analyst import run_style_analyst, run_style_analyst_from_doc, _is_tov_document
 
@@ -15,7 +16,7 @@ router = Router()
 
 _ALLOWED_EXTENSIONS = {".json", ".md", ".txt"}
 _MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
-_MAX_PROFILES = 3
+_MAX_PROFILES = 5  # absolute hard cap; per-plan limit enforced dynamically
 _DEFAULT_PROFILE = "main"
 
 
@@ -88,12 +89,20 @@ async def handle_document(message: Message, state: FSMContext) -> None:
         return
 
     # Has existing profiles — ask which one to save to
+    plan_name = await get_active_plan(user_id)
+    max_profiles = profiles_limit(plan_name)
     await state.update_data(pending_doc_id=doc.file_id, pending_filename=filename)
     b = InlineKeyboardBuilder()
     for p in profiles:
         b.row(InlineKeyboardButton(text=f"📁 Обновить «{p}»", callback_data=f"upload:profile:{p}"))
-    if len(profiles) < _MAX_PROFILES:
+    if len(profiles) < max_profiles:
         b.row(InlineKeyboardButton(text="➕ Новый профиль", callback_data="upload:profile:new"))
+    else:
+        plan = get_plan(plan_name)
+        b.row(InlineKeyboardButton(
+            text=f"🔒 Лимит профилей ({max_profiles}) • Улучшить тариф",
+            callback_data="subscribe",
+        ))
     await message.answer(
         "В какой профиль стиля сохранить?",
         reply_markup=b.as_markup(),

@@ -13,8 +13,9 @@ from bot.database import (
     add_to_queue, delete_scheduled_post,
     add_schedule_slot, delete_schedule_slot,
     next_free_slot, is_queue_paused, toggle_queue_pause,
-    get_preference,
+    get_preference, get_active_plan,
 )
+from bot.plans import get_plan, slots_limit
 from bot.keyboards import (
     schedule_main_kb, schedule_queue_kb, schedule_confirm_kb,
     main_menu, MENU_SCHEDULE,
@@ -127,11 +128,30 @@ async def cb_add_slot(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.message(SchedS.waiting_slot_time)
 async def handle_slot_time(message: Message, state: FSMContext) -> None:
+    user_id = message.from_user.id
     t = _parse_time(message.text)
     if not t:
         await message.answer("❌ Не понял время. Введи в формате HH:MM, например `10:00`", parse_mode="Markdown")
         return
-    added = await add_schedule_slot(message.from_user.id, t)
+
+    # Check slot limit for plan
+    plan_name = await get_active_plan(user_id)
+    plan = get_plan(plan_name)
+    limit = slots_limit(plan_name)
+    if limit is not None:
+        current_slots = await get_schedule_slots(user_id)
+        if len(current_slots) >= limit:
+            from bot.keyboards import plans_kb
+            await state.clear()
+            await message.answer(
+                f"🔒 На тарифе *{plan['emoji']} {plan['name']}* доступно не более *{limit}* слот(а) расписания.\n\n"
+                f"Улучши тариф чтобы добавить больше:",
+                parse_mode="Markdown",
+                reply_markup=plans_kb(),
+            )
+            return
+
+    added = await add_schedule_slot(user_id, t)
     await state.clear()
     if added:
         await message.answer(f"✅ Слот {t} UTC добавлен.")

@@ -12,11 +12,13 @@ FREE_COMMANDS = {"/start", "/help"}
 
 # callback_data prefixes that require a specific feature
 _FEATURE_GATES = {
-    "trend:":         "trends",
-    "topicsearch:":   "trends",
-    "plan:":          "content_plan",
-    "sched:":         "schedule",
-    "schedule:":      "schedule",
+    "trend:":              "trends",
+    "topicsearch:":        "trends",
+    "plan:":               "content_plan",
+    "sched:":              "schedule",
+    "schedule:":           "schedule",
+    "settings:setup_channel": "autopublish",
+    "publish:channel:go":     "autopublish",
 }
 
 # Actions that count toward monthly limits
@@ -39,6 +41,8 @@ def _requires_feature(event: Message | CallbackQuery) -> str | None:
             return "content_plan"
         if text == "⏰ Расписание":
             return "schedule"
+        if text.startswith("/channel"):
+            return "autopublish"
     return None
 
 
