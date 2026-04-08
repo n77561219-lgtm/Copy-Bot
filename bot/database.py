@@ -114,6 +114,13 @@ CREATE TABLE IF NOT EXISTS schedule_slots (
     UNIQUE(user_id, time_utc)
 );
 
+CREATE TABLE IF NOT EXISTS renewal_notifications (
+    user_id    BIGINT NOT NULL,
+    days_left  INT    NOT NULL,
+    sent_at    TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (user_id, days_left)
+);
+
 CREATE INDEX IF NOT EXISTS idx_style_examples_user ON style_examples(user_id);
 CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id);
 CREATE INDEX IF NOT EXISTS idx_content_plan_user ON content_plan(user_id);
@@ -549,9 +556,9 @@ async def delete_schedule_slot(user_id: int, time_utc: str) -> bool:
     return result == "DELETE 1"
 
 
-async def next_free_slot(user_id: int) -> Optional["datetime"]:
+async def next_free_slot(user_id: int) -> Optional[datetime]:
     """Return next datetime (UTC) from user's schedule slots that has no pending post."""
-    from datetime import datetime, timezone, timedelta
+    from datetime import timedelta
     slots = await get_schedule_slots(user_id)
     if not slots:
         return None
@@ -569,3 +576,40 @@ async def next_free_slot(user_id: int) -> Optional["datetime"]:
             if key not in taken:
                 return candidate
     return None
+
+
+# ── Renewal notifications ─────────────────────────────────────────────────────
+
+async def get_expiring_subscriptions(days: int) -> list[dict]:
+    """Return paid subscribers whose subscription expires in exactly `days` days
+    and haven't been notified for that days_left value yet today."""
+    async with get_pool().acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT s.user_id, s.plan, s.expires_at
+            FROM subscriptions s
+            WHERE s.plan NOT IN ('free', 'trial')
+              AND s.status = 'active'
+              AND s.expires_at != 'infinity'
+              AND s.expires_at::date = (NOW() + ($1 || ' days')::interval)::date
+              AND NOT EXISTS (
+                  SELECT 1 FROM renewal_notifications rn
+                  WHERE rn.user_id = s.user_id AND rn.days_left = $2
+                    AND rn.sent_at::date = NOW()::date
+              )
+            """,
+            str(days), days,
+        )
+    return [dict(r) for r in rows]
+
+
+async def mark_renewal_notified(user_id: int, days_left: int) -> None:
+    async with get_pool().acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO renewal_notifications (user_id, days_left)
+            VALUES ($1, $2)
+            ON CONFLICT (user_id, days_left) DO UPDATE SET sent_at = NOW()
+            """,
+            user_id, days_left,
+        )

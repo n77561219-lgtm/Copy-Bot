@@ -11,13 +11,18 @@ from bot.database import (
     increment_scheduled_attempts,
     reschedule_post,
     is_queue_paused,
+    get_expiring_subscriptions,
+    mark_renewal_notified,
 )
+from bot.plans import get_plan, PLANS
 
 logger = logging.getLogger(__name__)
 
 MAX_ATTEMPTS = 3
 RETRY_MINUTES = 5
-POLL_INTERVAL = 60  # seconds
+POLL_INTERVAL = 60        # seconds
+RENEWAL_INTERVAL = 3600   # check renewals every hour
+RENEWAL_DAYS = [3, 1, 0]  # notify 3 days, 1 day, and day-of expiry
 
 
 async def scheduler_loop(bot: Bot) -> None:
@@ -60,3 +65,64 @@ async def _process_due_posts(bot: Bot) -> None:
                 await increment_scheduled_attempts(post["id"], attempts, err_text)
                 await reschedule_post(post["id"], RETRY_MINUTES)
                 logger.warning("Post %s attempt %s failed, retry in %sm", post["id"], attempts, RETRY_MINUTES)
+
+
+async def renewal_notification_loop(bot: Bot) -> None:
+    """Runs forever, sends subscription renewal reminders at 3d / 1d / 0d before expiry."""
+    logger.info("Renewal notification loop started")
+    while True:
+        await asyncio.sleep(RENEWAL_INTERVAL)
+        try:
+            await _send_renewal_notifications(bot)
+        except Exception as e:
+            logger.error("Renewal notification loop error: %s", e)
+
+
+async def _send_renewal_notifications(bot: Bot) -> None:
+    for days in RENEWAL_DAYS:
+        subs = await get_expiring_subscriptions(days)
+        for sub in subs:
+            user_id = sub["user_id"]
+            plan = get_plan(sub["plan"])
+            expires = _as_utc(sub["expires_at"]).strftime("%d.%m.%Y")
+
+            if days == 0:
+                text = (
+                    f"🔴 *Подписка истекает сегодня!*\n\n"
+                    f"Тариф {plan['emoji']} *{plan['name']}* заканчивается {expires}.\n"
+                    f"После истечения доступ перейдёт на бесплатный тариф (5 постов/мес).\n\n"
+                    f"Продли подписку, чтобы не терять доступ:"
+                )
+            elif days == 1:
+                text = (
+                    f"🟡 *Подписка заканчивается завтра*\n\n"
+                    f"Тариф {plan['emoji']} *{plan['name']}* действует до {expires}.\n\n"
+                    f"Продли сейчас — это займёт 10 секунд:"
+                )
+            else:
+                text = (
+                    f"🟢 *Напоминание о подписке*\n\n"
+                    f"Тариф {plan['emoji']} *{plan['name']}* действует до {expires} (осталось {days} дня).\n\n"
+                    f"Продли заранее, чтобы не прерывать работу:"
+                )
+
+            try:
+                from bot.keyboards import plans_kb
+                await bot.send_message(
+                    user_id, text,
+                    parse_mode="Markdown",
+                    reply_markup=plans_kb(sub["plan"]),
+                )
+                await mark_renewal_notified(user_id, days)
+                logger.info("Sent renewal notice (%dd) to user %s", days, user_id)
+            except Exception as e:
+                logger.warning("Failed to send renewal notice to %s: %s", user_id, e)
+
+
+def _as_utc(dt):
+    from datetime import timezone
+    if dt is None:
+        return dt
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt

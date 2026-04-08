@@ -19,7 +19,7 @@ from bot.handlers import admin as admin_handler
 from bot.handlers import referral as referral_handler
 from bot.handlers import autopublish as autopublish_handler
 from bot.handlers import schedule as schedule_handler
-from bot.scheduler import scheduler_loop
+from bot.scheduler import scheduler_loop, renewal_notification_loop
 from bot.subscription_middleware import SubscriptionMiddleware
 
 logging.basicConfig(
@@ -84,6 +84,7 @@ async def main() -> None:
 
     logger.info("Bot started")
     asyncio.create_task(scheduler_loop(bot))
+    asyncio.create_task(renewal_notification_loop(bot))
     await dp.start_polling(bot)
 
 
