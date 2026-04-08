@@ -21,7 +21,7 @@ async def cb_subscribe_menu(callback: CallbackQuery) -> None:
     lines = ["💎 *Выбери тариф КопиБОТа:*\n"]
     for plan_id in ["free"] + PAID_PLANS:
         p = PLANS[plan_id]
-        price = "бесплатно" if p["stars"] == 0 else f"{p['stars']} Stars/мес"
+        price = "бесплатно" if p["price_rub"] == 0 else f"{p['price_rub']}₽/мес"
         lines.append(f"{p['emoji']} *{p['name']}* — {price}\n{p['description']}\n")
     await callback.message.answer(
         "\n".join(lines),

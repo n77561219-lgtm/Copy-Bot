@@ -3,15 +3,15 @@
 Plans:
   free     — permanent free tier, limited features
   trial    — 7-day full access (auto-created on /start)
-  basic    — 290 Stars/month (~380₽)
-  standard — 590 Stars/month (~770₽)
-  pro      — 990 Stars/month (~1290₽)
+  basic    — 390₽/month  (290 Stars)
+  standard — 690₽/month  (590 Stars)
+  pro      — 1290₽/month (990 Stars)
 
 Pricing rationale (cost per post ≈ $0.036 / ~3.2₽, per image ≈ $0.039 / ~3.5₽):
-  basic:    30п+5ф → ~110₽ cost, ~340₽ payout → margin ~230₽
-  standard: 80п+15ф → ~308₽ cost, ~690₽ payout → margin ~382₽
-  pro:      200п+50ф → ~815₽ cost, ~1158₽ payout → margin ~343₽
-  Pro "unlimited" removed — power users (5+ channels) would cause losses.
+  basic:    30п+5ф → ~114₽ cost, ~360₽ net (after YuKassa+НПД) → margin ~246₽
+  standard: 80п+15ф → ~309₽ cost, ~638₽ net → margin ~329₽
+  pro:      200п+50ф → ~815₽ cost, ~1193₽ net → margin ~378₽
+  price_rub is the canonical price for landing/oferta; stars used inside Telegram.
 """
 
 from typing import TypedDict
@@ -25,7 +25,8 @@ class PlanConfig(TypedDict):
     schedule_slots: int | None      # max schedule time slots; None = unlimited
     style_profiles: int             # max style profiles
     features: list[str]             # style | trends | content_plan | schedule | autopublish | priority
-    stars: int                      # Telegram Stars price (0 = free)
+    price_rub: int                  # price in rubles (0 = free)
+    stars: int                      # Telegram Stars equivalent (kept for payment invoice)
     description: str
 
 
@@ -39,6 +40,7 @@ PLANS: dict[str, PlanConfig] = {
         "style_profiles": 1,
         "features": ["style"],
         "stars": 0,
+        "price_rub": 0,
         "description": "5 постов + 1 картинка в месяц • Анализ стиля",
     },
     "trial": {
@@ -50,6 +52,7 @@ PLANS: dict[str, PlanConfig] = {
         "style_profiles": 5,
         "features": ["style", "trends", "content_plan", "schedule", "autopublish", "priority"],
         "stars": 0,
+        "price_rub": 0,
         "description": "7 дней полного доступа",
     },
     "basic": {
@@ -61,6 +64,7 @@ PLANS: dict[str, PlanConfig] = {
         "style_profiles": 1,
         "features": ["style", "trends"],
         "stars": 290,
+        "price_rub": 390,
         "description": "30 постов + 5 картинок • Тренды • Анализ стиля",
     },
     "standard": {
@@ -72,6 +76,7 @@ PLANS: dict[str, PlanConfig] = {
         "style_profiles": 3,
         "features": ["style", "trends", "content_plan", "schedule", "autopublish"],
         "stars": 590,
+        "price_rub": 690,
         "description": "80 постов + 15 картинок • Контент-план • Расписание • Автопубликация",
     },
     "pro": {
@@ -83,6 +88,7 @@ PLANS: dict[str, PlanConfig] = {
         "style_profiles": 5,
         "features": ["style", "trends", "content_plan", "schedule", "autopublish", "priority"],
         "stars": 990,
+        "price_rub": 1290,
         "description": "200 постов + 50 картинок • Для 3–5 каналов • Все функции",
     },
 }

@@ -182,7 +182,7 @@ def plans_kb(current_plan: str = "") -> InlineKeyboardMarkup:
         p = PLANS[plan_id]
         mark = " ✅" if plan_id == current_plan else ""
         b.row(InlineKeyboardButton(
-            text=f"{p['emoji']} {p['name']} — {p['stars']} Stars{mark}",
+            text=f"{p['emoji']} {p['name']} — {p['price_rub']}₽/мес{mark}",
             callback_data=f"subscribe:{plan_id}",
         ))
     b.row(InlineKeyboardButton(text="ℹ️ Моя подписка", callback_data="subscription_info"))
