@@ -121,6 +121,15 @@ CREATE TABLE IF NOT EXISTS renewal_notifications (
     PRIMARY KEY (user_id, days_left)
 );
 
+CREATE TABLE IF NOT EXISTS payments (
+    id          BIGSERIAL PRIMARY KEY,
+    user_id     BIGINT NOT NULL,
+    plan        TEXT   NOT NULL,
+    period      TEXT   NOT NULL,
+    amount_rub  INT    NOT NULL,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_style_examples_user ON style_examples(user_id);
 CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id);
 CREATE INDEX IF NOT EXISTS idx_content_plan_user ON content_plan(user_id);
@@ -129,6 +138,8 @@ CREATE INDEX IF NOT EXISTS idx_usage_log_user ON usage_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_id);
 CREATE INDEX IF NOT EXISTS idx_scheduled_posts_due ON scheduled_posts(scheduled_at, status);
 CREATE INDEX IF NOT EXISTS idx_scheduled_posts_user ON scheduled_posts(user_id);
+CREATE INDEX IF NOT EXISTS idx_payments_created ON payments(created_at);
+CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id);
 """
 
 
@@ -613,3 +624,95 @@ async def mark_renewal_notified(user_id: int, days_left: int) -> None:
             """,
             user_id, days_left,
         )
+
+
+# ── Payments ──────────────────────────────────────────────────────────────────
+
+async def log_payment(user_id: int, plan: str, period: str, amount_rub: int) -> None:
+    """Record a successful payment for revenue tracking."""
+    async with get_pool().acquire() as conn:
+        await conn.execute(
+            "INSERT INTO payments (user_id, plan, period, amount_rub) VALUES ($1, $2, $3, $4)",
+            user_id, plan, period, amount_rub,
+        )
+
+
+async def get_admin_stats() -> dict:
+    """Aggregate stats for the /admin dashboard."""
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    day_ago   = now - timedelta(days=1)
+    week_ago  = now - timedelta(days=7)
+    month_ago = now - timedelta(days=30)
+
+    async with get_pool().acquire() as conn:
+        # ── Users by plan ──────────────────────────────────────────────────
+        total   = await conn.fetchval("SELECT COUNT(*) FROM subscriptions") or 0
+        trial   = await conn.fetchval(
+            "SELECT COUNT(*) FROM subscriptions WHERE plan='trial' AND status='active' AND expires_at > $1", now
+        ) or 0
+        free    = await conn.fetchval("SELECT COUNT(*) FROM subscriptions WHERE plan='free'") or 0
+        p_basic = await conn.fetchval(
+            "SELECT COUNT(*) FROM subscriptions WHERE plan='basic' AND status='active' AND expires_at > $1", now
+        ) or 0
+        p_std   = await conn.fetchval(
+            "SELECT COUNT(*) FROM subscriptions WHERE plan='standard' AND status='active' AND expires_at > $1", now
+        ) or 0
+        p_pro   = await conn.fetchval(
+            "SELECT COUNT(*) FROM subscriptions WHERE plan='pro' AND status='active' AND expires_at > $1", now
+        ) or 0
+        expired_paid = await conn.fetchval(
+            "SELECT COUNT(*) FROM subscriptions WHERE plan IN ('basic','standard','pro') AND expires_at < $1", now
+        ) or 0
+
+        # ── Revenue ───────────────────────────────────────────────────────
+        rev_today = await conn.fetchval(
+            "SELECT COALESCE(SUM(amount_rub), 0) FROM payments WHERE created_at >= $1", day_ago
+        ) or 0
+        rev_week  = await conn.fetchval(
+            "SELECT COALESCE(SUM(amount_rub), 0) FROM payments WHERE created_at >= $1", week_ago
+        ) or 0
+        rev_month = await conn.fetchval(
+            "SELECT COALESCE(SUM(amount_rub), 0) FROM payments WHERE created_at >= $1", month_ago
+        ) or 0
+        rev_total = await conn.fetchval(
+            "SELECT COALESCE(SUM(amount_rub), 0) FROM payments"
+        ) or 0
+
+        # ── Conversion ────────────────────────────────────────────────────
+        converted_total = await conn.fetchval(
+            "SELECT COUNT(DISTINCT user_id) FROM payments"
+        ) or 0
+        converted_30d   = await conn.fetchval(
+            "SELECT COUNT(DISTINCT user_id) FROM payments WHERE created_at >= $1", month_ago
+        ) or 0
+        registered_30d  = await conn.fetchval(
+            "SELECT COUNT(*) FROM subscriptions WHERE started_at >= $1", month_ago
+        ) or 0
+
+        # ── Activity ──────────────────────────────────────────────────────
+        posts_24h  = await conn.fetchval(
+            "SELECT COUNT(*) FROM posts WHERE created_at >= $1", day_ago
+        ) or 0
+        posts_7d   = await conn.fetchval(
+            "SELECT COUNT(*) FROM posts WHERE created_at >= $1", week_ago
+        ) or 0
+        images_7d  = await conn.fetchval(
+            "SELECT COUNT(*) FROM usage_log WHERE action='image_generated' AND created_at >= $1", week_ago
+        ) or 0
+
+    conv_30d_rate   = round(converted_30d   / registered_30d  * 100, 1) if registered_30d  > 0 else 0.0
+    conv_total_rate = round(converted_total / total            * 100, 1) if total            > 0 else 0.0
+
+    return {
+        "total": total, "trial": trial, "free": free,
+        "p_basic": p_basic, "p_std": p_std, "p_pro": p_pro,
+        "paid_total": p_basic + p_std + p_pro,
+        "expired_paid": expired_paid,
+        "rev_today": rev_today, "rev_week": rev_week,
+        "rev_month": rev_month, "rev_total": rev_total,
+        "converted_total": converted_total, "conv_total_rate": conv_total_rate,
+        "converted_30d": converted_30d, "registered_30d": registered_30d,
+        "conv_30d_rate": conv_30d_rate,
+        "posts_24h": posts_24h, "posts_7d": posts_7d, "images_7d": images_7d,
+    }

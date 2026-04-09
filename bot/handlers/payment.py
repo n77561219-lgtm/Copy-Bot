@@ -8,7 +8,7 @@ from aiogram.types import (
     SuccessfulPayment,
 )
 
-from bot.database import activate_subscription, get_subscription, log_usage, set_preference, get_preference
+from bot.database import activate_subscription, get_subscription, log_usage, set_preference, get_preference, log_payment
 from bot.keyboards import main_menu, plans_kb, checkout_kb
 from bot.plans import PLANS, PAID_PLANS
 
@@ -168,6 +168,8 @@ async def successful_payment(message: Message) -> None:
                                  payment_id=payment.telegram_payment_charge_id)
     await set_preference(user_id, "last_period", period)
     await log_usage(user_id, "payment")
+    amount_rub = plan["price_rub_year"] if months == 12 else plan["price_rub"]
+    await log_payment(user_id, plan_id, period, amount_rub)
 
     sub = await get_subscription(user_id)
     expires = sub["expires_at"].strftime("%d.%m.%Y") if sub else "—"
