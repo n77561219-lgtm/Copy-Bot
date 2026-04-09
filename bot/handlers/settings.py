@@ -9,14 +9,17 @@ router = Router()
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 DEFAULTS = {
-    "post_length":   "medium",   # short | medium | long
-    "show_score":    "yes",      # yes | no
-    "critic_iters":  "2",        # 1 | 2
+    "post_length":   "medium",    # short | medium | long
+    "show_score":    "yes",       # yes | no
+    "critic_iters":  "2",         # 1 | 2
+    "platform":      "telegram",  # telegram | vk | max
 }
 
-_LENGTH_LABELS  = {"short": "Короткий (50-80 сл.)", "medium": "Стандартный (100-200 сл.)", "long": "Длинный (200-350 сл.)"}
-_SCORE_LABELS   = {"yes": "Показывать ✅", "no": "Скрыть ❌"}
-_ITERS_LABELS   = {"1": "1 проход", "2": "2 прохода"}
+_LENGTH_LABELS   = {"short": "Короткий (50-80 сл.)", "medium": "Стандартный (100-200 сл.)", "long": "Длинный (200-350 сл.)"}
+_SCORE_LABELS    = {"yes": "Показывать ✅", "no": "Скрыть ❌"}
+_ITERS_LABELS    = {"1": "1 проход", "2": "2 прохода"}
+_PLATFORM_LABELS = {"telegram": "Telegram", "vk": "ВКонтакте", "max": "Мессенджер MAX"}
+_PLATFORM_ORDER  = ["telegram", "vk", "max"]
 
 
 async def get_setting(user_id: int, key: str) -> str:
@@ -27,9 +30,10 @@ async def get_setting(user_id: int, key: str) -> str:
 # ── Keyboard ───────────────────────────────────────────────────────────────────
 
 async def settings_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    length  = await get_setting(user_id, "post_length")
-    score   = await get_setting(user_id, "show_score")
-    iters   = await get_setting(user_id, "critic_iters")
+    length   = await get_setting(user_id, "post_length")
+    score    = await get_setting(user_id, "show_score")
+    iters    = await get_setting(user_id, "critic_iters")
+    platform = await get_setting(user_id, "platform")
 
     b = InlineKeyboardBuilder()
     b.row(InlineKeyboardButton(
@@ -43,6 +47,10 @@ async def settings_keyboard(user_id: int) -> InlineKeyboardMarkup:
     b.row(InlineKeyboardButton(
         text=f"🔄 Итерации правки: {_ITERS_LABELS[iters]}",
         callback_data="settings:iters:cycle"
+    ))
+    b.row(InlineKeyboardButton(
+        text=f"📱 Платформа: {_PLATFORM_LABELS[platform]}",
+        callback_data="settings:platform:cycle"
     ))
     channel = await get_preference(user_id, "publish_channel")
     channel_label = f"🔗 Канал: {channel}" if channel else "🔗 Подключить канал"
@@ -97,6 +105,16 @@ async def cb_iters(callback: CallbackQuery) -> None:
     await set_preference(user_id, "critic_iters", next_val)
     await callback.message.edit_reply_markup(reply_markup=await settings_keyboard(user_id))
     await callback.answer(f"Итерации: {_ITERS_LABELS[next_val]}")
+
+
+@router.callback_query(F.data == "settings:platform:cycle")
+async def cb_platform(callback: CallbackQuery) -> None:
+    user_id = callback.from_user.id
+    current = await get_setting(user_id, "platform")
+    next_val = _PLATFORM_ORDER[(_PLATFORM_ORDER.index(current) + 1) % len(_PLATFORM_ORDER)]
+    await set_preference(user_id, "platform", next_val)
+    await callback.message.edit_reply_markup(reply_markup=await settings_keyboard(user_id))
+    await callback.answer(f"Платформа: {_PLATFORM_LABELS[next_val]}")
 
 
 @router.callback_query(F.data == "settings:close")

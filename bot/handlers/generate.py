@@ -91,6 +91,7 @@ async def _generate_post(
     post_length  = await get_setting(user_id, "post_length")
     show_score   = await get_setting(user_id, "show_score")
     critic_iters = int(await get_setting(user_id, "critic_iters"))
+    platform     = await get_setting(user_id, "platform")
 
     status = await message.answer("🔍 Исследую тему...")
     try:
@@ -105,6 +106,7 @@ async def _generate_post(
             previous_draft=previous_draft,
             feedback=feedback,
             length=post_length,
+            platform=platform,
         )
 
         await status.edit_text("🔎 Проверяю качество...")
