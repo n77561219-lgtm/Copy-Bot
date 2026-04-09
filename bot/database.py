@@ -235,10 +235,12 @@ async def get_preference(user_id: int, key: str) -> Optional[str]:
 
 # ── Subscriptions ─────────────────────────────────────────────────────────────
 
+TRIAL_DAYS = 5
+
 async def create_trial(user_id: int) -> None:
-    """Create a 7-day trial subscription if the user has no subscription yet."""
+    """Create a 5-day trial subscription if the user has no subscription yet."""
     from datetime import datetime, timedelta, timezone
-    expires = datetime.now(timezone.utc) + timedelta(days=7)
+    expires = datetime.now(timezone.utc) + timedelta(days=TRIAL_DAYS)
     async with get_pool().acquire() as conn:
         await conn.execute(
             """
@@ -381,8 +383,7 @@ async def register_referral(referrer_id: int, invited_id: int) -> bool:
 
 
 async def give_referral_bonus(referrer_id: int, invited_id: int) -> bool:
-    """Give +7 days to referrer when invited_id activates subscription. Returns True if bonus given."""
-    from datetime import datetime, timedelta, timezone
+    """Give +5 days to referrer when invited_id activates subscription. Returns True if bonus given."""
     async with get_pool().acquire() as conn:
         row = await conn.fetchrow(
             "SELECT id, bonus_given FROM referrals WHERE referrer_id=$1 AND invited_id=$2",
@@ -390,13 +391,8 @@ async def give_referral_bonus(referrer_id: int, invited_id: int) -> bool:
         )
         if not row or row["bonus_given"]:
             return False
-        # extend referrer subscription by 7 days
         await conn.execute(
-            """
-            UPDATE subscriptions
-            SET expires_at = expires_at + INTERVAL '7 days'
-            WHERE user_id = $1
-            """,
+            "UPDATE subscriptions SET expires_at = expires_at + INTERVAL '5 days' WHERE user_id = $1",
             referrer_id,
         )
         await conn.execute(
@@ -404,6 +400,24 @@ async def give_referral_bonus(referrer_id: int, invited_id: int) -> bool:
             row["id"],
         )
     return True
+
+
+async def extend_subscription_days(user_id: int, days: int) -> None:
+    """Add N days to user's subscription (trial or paid)."""
+    async with get_pool().acquire() as conn:
+        await conn.execute(
+            "UPDATE subscriptions SET expires_at = expires_at + ($1 || ' days')::interval WHERE user_id = $2",
+            str(days), user_id,
+        )
+
+
+async def count_successful_referrals(user_id: int) -> int:
+    """Count how many referrals this user has where bonus was given."""
+    async with get_pool().acquire() as conn:
+        return await conn.fetchval(
+            "SELECT COUNT(*) FROM referrals WHERE referrer_id=$1 AND bonus_given=TRUE",
+            user_id,
+        ) or 0
 
 
 async def get_referral_stats(user_id: int) -> dict:

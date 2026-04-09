@@ -6,7 +6,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
 
-from bot.database import create_trial, get_subscription, get_style_examples_count
+from bot.database import create_trial, get_subscription, get_style_examples_count, extend_subscription_days
 from bot.keyboards import main_menu
 
 router = Router()
@@ -22,27 +22,38 @@ def _onboarding_kb() -> InlineKeyboardBuilder:
 @router.message(CommandStart(deep_link=True))
 async def cmd_start_ref(message: Message) -> None:
     """Handle referral deep link: /start ref_<user_id>"""
+    from bot.handlers.referral import process_referral_start, INVITED_BONUS_DAYS
     payload = message.text.split(maxsplit=1)[1] if " " in message.text else ""
+    is_referred = False
     if payload.startswith("ref_"):
         try:
             referrer_id = int(payload[4:])
-            from bot.handlers.referral import process_referral_start
+            await create_trial(message.from_user.id)
             await process_referral_start(referrer_id, message.from_user.id, message.bot)
+            await extend_subscription_days(message.from_user.id, INVITED_BONUS_DAYS)
+            is_referred = True
         except (ValueError, IndexError):
             pass
-    await cmd_start(message)
+    await cmd_start(message, is_referred=is_referred)
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message) -> None:
+async def cmd_start(message: Message, is_referred: bool = False) -> None:
+    from bot.handlers.referral import INVITED_BONUS_DAYS
     user_id = message.from_user.id
     is_new = await _is_new_user(user_id)
-    await create_trial(user_id)
+    await create_trial(user_id)  # no-op if already exists
 
     sub = await get_subscription(user_id)
     if sub and sub["expires_at"] > datetime.now(timezone.utc):
         days_left = (sub["expires_at"] - datetime.now(timezone.utc)).days
-        trial_note = f"\n\n⏳ Пробный период: ещё *{days_left} дн.*"
+        if is_referred:
+            trial_note = (
+                f"\n\n🎁 Тебя пригласил друг — получи *+{INVITED_BONUS_DAYS} дня* к пробному периоду!\n"
+                f"⏳ Пробный период: *{days_left} дн.*"
+            )
+        else:
+            trial_note = f"\n\n⏳ Пробный период: ещё *{days_left} дн.*"
     else:
         trial_note = ""
 
