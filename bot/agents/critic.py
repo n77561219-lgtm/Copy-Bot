@@ -37,7 +37,7 @@ _SYSTEM = """\
 """
 
 
-async def run_critic(post: str, style_profile: dict) -> CriticResult:
+async def run_critic(post: str, style_profile: dict, user_id: int | None = None) -> CriticResult:
     profile_brief = json.dumps(
         {
             "tone": style_profile.get("tone", {}),
@@ -54,6 +54,8 @@ async def run_critic(post: str, style_profile: dict) -> CriticResult:
         ],
         temperature=0.0,
         max_tokens=500,
+        user_id=user_id,
+        agent="critic",
     )
     try:
         clean = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()

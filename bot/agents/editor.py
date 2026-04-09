@@ -42,6 +42,7 @@ async def run_editor(
     mode: EditMode = "human",
     custom_instruction: str = "",
     issues: list[str] | None = None,
+    user_id: int | None = None,
 ) -> str:
     user_content = f"Текст для правки:\n{post}"
     if issues:
@@ -55,4 +56,6 @@ async def run_editor(
         ],
         temperature=0.4,
         max_tokens=1000,
+        user_id=user_id,
+        agent="editor",
     )

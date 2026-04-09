@@ -66,6 +66,7 @@ async def run_copywriter(
     post_type: str = "мнение",
     length: str = "medium",
     platform: str = "telegram",
+    user_id: int | None = None,
 ) -> str:
     parts = [f"Напиши пост на тему: {topic}"]
     if post_type:
@@ -85,4 +86,6 @@ async def run_copywriter(
         ],
         temperature=0.75,
         max_tokens=1000,
+        user_id=user_id,
+        agent="copywriter",
     )

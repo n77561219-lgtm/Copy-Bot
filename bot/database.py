@@ -140,6 +140,19 @@ CREATE INDEX IF NOT EXISTS idx_scheduled_posts_due ON scheduled_posts(scheduled_
 CREATE INDEX IF NOT EXISTS idx_scheduled_posts_user ON scheduled_posts(user_id);
 CREATE INDEX IF NOT EXISTS idx_payments_created ON payments(created_at);
 CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id);
+
+CREATE TABLE IF NOT EXISTS token_log (
+    id            BIGSERIAL PRIMARY KEY,
+    user_id       BIGINT,
+    agent         TEXT NOT NULL,
+    model         TEXT NOT NULL,
+    input_tokens  INT  NOT NULL DEFAULT 0,
+    output_tokens INT  NOT NULL DEFAULT 0,
+    created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_token_log_created ON token_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_token_log_user ON token_log(user_id);
 """
 
 
@@ -729,4 +742,108 @@ async def get_admin_stats() -> dict:
         "converted_30d": converted_30d, "registered_30d": registered_30d,
         "conv_30d_rate": conv_30d_rate,
         "posts_24h": posts_24h, "posts_7d": posts_7d, "images_7d": images_7d,
+    }
+
+
+# ── Token tracking ────────────────────────────────────────────────────────────
+
+# OpenRouter pricing (per 1M tokens) in USD, converted at 90₽/$
+_TOKEN_COST_RUB = {
+    "anthropic/claude-3-5-sonnet": {"in": 3.0 * 90 / 1_000_000, "out": 15.0 * 90 / 1_000_000},
+    "anthropic/claude-3-5-haiku":  {"in": 0.8 * 90 / 1_000_000, "out": 4.0  * 90 / 1_000_000},
+    "perplexity/sonar":            {"in": 1.0 * 90 / 1_000_000, "out": 1.0  * 90 / 1_000_000},
+}
+_DEFAULT_COST = {"in": 3.0 * 90 / 1_000_000, "out": 15.0 * 90 / 1_000_000}
+
+
+def _estimate_cost_rub(model: str, input_tokens: int, output_tokens: int) -> float:
+    rates = _TOKEN_COST_RUB.get(model, _DEFAULT_COST)
+    return round(input_tokens * rates["in"] + output_tokens * rates["out"], 4)
+
+
+async def log_tokens(
+    user_id: int | None,
+    agent: str,
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+) -> None:
+    async with get_pool().acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO token_log (user_id, agent, model, input_tokens, output_tokens)
+            VALUES ($1, $2, $3, $4, $5)
+            """,
+            user_id, agent, model, input_tokens, output_tokens,
+        )
+
+
+async def get_token_stats() -> dict:
+    """Aggregate token usage for /admin_tokens."""
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    day_ago  = now - timedelta(days=1)
+    week_ago = now - timedelta(days=7)
+
+    async with get_pool().acquire() as conn:
+        # Totals by period
+        def _q(since):
+            return (
+                "SELECT COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0) "
+                "FROM token_log WHERE created_at >= $1"
+            ), since
+
+        row_24h = await conn.fetchrow(*_q(day_ago))
+        row_7d  = await conn.fetchrow(*_q(week_ago))
+        row_all = await conn.fetchrow(
+            "SELECT COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0) FROM token_log"
+        )
+
+        # By agent (7 days), top agents by output tokens
+        agent_rows = await conn.fetch(
+            """
+            SELECT agent, model,
+                   SUM(input_tokens)  AS inp,
+                   SUM(output_tokens) AS out,
+                   COUNT(*)           AS calls
+            FROM token_log
+            WHERE created_at >= $1
+            GROUP BY agent, model
+            ORDER BY out DESC
+            LIMIT 10
+            """,
+            week_ago,
+        )
+
+    def _cost(row):
+        return _estimate_cost_rub(
+            row["model"] if "model" in row.keys() else "",
+            int(row[0]), int(row[1])
+        )
+
+    in_24h,  out_24h  = int(row_24h[0]), int(row_24h[1])
+    in_7d,   out_7d   = int(row_7d[0]),  int(row_7d[1])
+    in_all,  out_all  = int(row_all[0]), int(row_all[1])
+
+    cost_24h = _estimate_cost_rub("", in_24h, out_24h)
+    cost_7d  = _estimate_cost_rub("", in_7d,  out_7d)
+    cost_all = _estimate_cost_rub("", in_all, out_all)
+
+    agents = [
+        {
+            "agent": r["agent"],
+            "model": r["model"],
+            "inp": int(r["inp"]),
+            "out": int(r["out"]),
+            "calls": int(r["calls"]),
+            "cost": _estimate_cost_rub(r["model"], int(r["inp"]), int(r["out"])),
+        }
+        for r in agent_rows
+    ]
+
+    return {
+        "in_24h": in_24h, "out_24h": out_24h, "cost_24h": cost_24h,
+        "in_7d":  in_7d,  "out_7d":  out_7d,  "cost_7d":  cost_7d,
+        "in_all": in_all, "out_all": out_all,  "cost_all": cost_all,
+        "agents": agents,
     }

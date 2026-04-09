@@ -1,5 +1,9 @@
+import asyncio
+import logging
 from openai import AsyncOpenAI
 from bot.config import settings
+
+logger = logging.getLogger(__name__)
 
 _client: AsyncOpenAI | None = None
 
@@ -23,6 +27,8 @@ async def chat(
     messages: list[dict],
     temperature: float = 0.7,
     max_tokens: int = 2000,
+    user_id: int | None = None,
+    agent: str = "",
 ) -> str:
     response = await get_client().chat.completions.create(
         model=model,
@@ -30,10 +36,24 @@ async def chat(
         temperature=temperature,
         max_tokens=max_tokens,
     )
-    return response.choices[0].message.content.strip()
+    text = response.choices[0].message.content.strip()
+
+    usage = response.usage
+    if usage and user_id is not None:
+        asyncio.create_task(_log(user_id, agent, model, usage.prompt_tokens, usage.completion_tokens))
+
+    return text
+
+
+async def _log(user_id: int, agent: str, model: str, inp: int, out: int) -> None:
+    try:
+        from bot.database import log_tokens
+        await log_tokens(user_id, agent, model, inp, out)
+    except Exception as e:
+        logger.debug("token_log failed: %s", e)
 
 
 # Shortcuts
-HAIKU = settings.model_haiku
+HAIKU  = settings.model_haiku
 SONNET = settings.model_sonnet
 TRENDS = settings.model_trends

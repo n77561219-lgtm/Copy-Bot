@@ -28,7 +28,7 @@ _SYSTEM = """\
 """
 
 
-async def run_dispatcher(user_message: str) -> DispatchResult:
+async def run_dispatcher(user_message: str, user_id: int | None = None) -> DispatchResult:
     raw = await chat(
         model=HAIKU,
         messages=[
@@ -37,6 +37,8 @@ async def run_dispatcher(user_message: str) -> DispatchResult:
         ],
         temperature=0.1,
         max_tokens=300,
+        user_id=user_id,
+        agent="dispatcher",
     )
     try:
         clean = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()

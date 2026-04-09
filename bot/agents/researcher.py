@@ -28,7 +28,7 @@ _SYSTEM = """\
 """
 
 
-async def run_researcher(topic: str) -> str:
+async def run_researcher(topic: str, user_id: int | None = None) -> str:
     return await chat(
         model=SONNET,
         messages=[
@@ -37,4 +37,6 @@ async def run_researcher(topic: str) -> str:
         ],
         temperature=0.3,
         max_tokens=1000,
+        user_id=user_id,
+        agent="researcher",
     )

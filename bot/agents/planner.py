@@ -29,6 +29,7 @@ async def run_planner(
     days: int,
     style_profile: dict,
     recent_topics: list[str] | None = None,
+    user_id: int | None = None,
 ) -> list[dict]:
     main_topics = style_profile.get("content_patterns", {}).get("main_topics", [])
     post_types = style_profile.get("content_patterns", {}).get("post_types", [])
@@ -53,6 +54,8 @@ async def run_planner(
         ],
         temperature=0.6,
         max_tokens=2000,
+        user_id=user_id,
+        agent="planner",
     )
     try:
         clean = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()

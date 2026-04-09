@@ -95,7 +95,7 @@ async def _generate_post(
 
     status = await message.answer("🔍 Исследую тему...")
     try:
-        research = await run_researcher(topic)
+        research = await run_researcher(topic, user_id=user_id)
 
         await status.edit_text("✍️ Пишу пост...")
         draft = await run_copywriter(
@@ -107,12 +107,13 @@ async def _generate_post(
             feedback=feedback,
             length=post_length,
             platform=platform,
+            user_id=user_id,
         )
 
         await status.edit_text("🔎 Проверяю качество...")
 
         # Critic → Editor loop (controlled by settings)
-        result = await run_critic(draft, style_profile)
+        result = await run_critic(draft, style_profile, user_id=user_id)
         if result["verdict"] == "REVISE" and critic_iters >= 2:
             draft = await run_editor(
                 post=draft,
@@ -120,8 +121,9 @@ async def _generate_post(
                 mode="custom",
                 custom_instruction="Улучши пост",
                 issues=result["issues"],
+                user_id=user_id,
             )
-            result = await run_critic(draft, style_profile)
+            result = await run_critic(draft, style_profile, user_id=user_id)
 
     except Exception as e:
         err = str(e)
@@ -283,7 +285,7 @@ async def handle_text(message: Message, state: FSMContext) -> None:
         return
 
     # Classify intent
-    dispatch = await run_dispatcher(message.text)
+    dispatch = await run_dispatcher(message.text, user_id=user_id)
     intent = dispatch["intent"]
 
     if intent == "WRITE_POST":
@@ -342,7 +344,7 @@ async def _create_plan(message: Message, state: FSMContext, days: int, user_id: 
         return
 
     status = await message.answer(f"📅 Создаю контент-план на {days} дней...")
-    plan = await run_planner(days=days, style_profile=style_profile)
+    plan = await run_planner(days=days, style_profile=style_profile, user_id=user_id)
 
     if not plan:
         await status.edit_text("❌ Не удалось создать план. Попробуй ещё раз.")
@@ -471,7 +473,7 @@ async def cb_edit_mode(callback: CallbackQuery, state: FSMContext) -> None:
 
     status = await callback.message.answer("✏️ Редактирую...")
     try:
-        edited = await run_editor(post=post, style_profile=style_profile, mode=mode)
+        edited = await run_editor(post=post, style_profile=style_profile, mode=mode, user_id=user_id)
     except Exception as e:
         err = str(e)
         if "402" in err or "credits" in err.lower():
