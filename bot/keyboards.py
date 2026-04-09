@@ -169,6 +169,22 @@ def format_choice_kb() -> InlineKeyboardMarkup:
     return b.as_markup()
 
 
+def checkout_kb(plan_id: str, period: str, auto_renew: bool) -> InlineKeyboardMarkup:
+    """Checkout confirmation screen with auto-renew toggle."""
+    b = InlineKeyboardBuilder()
+    renew_mark = "✅" if auto_renew else "☐"
+    b.row(InlineKeyboardButton(
+        text=f"{renew_mark} Согласен на автопродление",
+        callback_data=f"checkout:toggle:{plan_id}:{period}",
+    ))
+    b.row(InlineKeyboardButton(
+        text="💳 Оплатить",
+        callback_data=f"checkout:pay:{plan_id}:{period}:{'1' if auto_renew else '0'}",
+    ))
+    b.row(InlineKeyboardButton(text="← Назад к тарифам", callback_data="subscribe"))
+    return b.as_markup()
+
+
 def subscribe_kb() -> InlineKeyboardMarkup:
     """Legacy single-button — replaced by plans_kb in most places."""
     return plans_kb()

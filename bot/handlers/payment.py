@@ -1,4 +1,4 @@
-"""Telegram Stars payment handler — monthly and annual plans."""
+"""Telegram Stars payment handler — monthly/annual plans with auto-renew consent."""
 from aiogram import Router, F
 from aiogram.types import (
     Message,
@@ -8,12 +8,14 @@ from aiogram.types import (
     SuccessfulPayment,
 )
 
-from bot.database import activate_subscription, get_subscription, log_usage
-from bot.keyboards import main_menu, plans_kb
+from bot.database import activate_subscription, get_subscription, log_usage, set_preference, get_preference
+from bot.keyboards import main_menu, plans_kb, checkout_kb
 from bot.plans import PLANS, PAID_PLANS
 
 router = Router()
 
+
+# ── Plan selection screen ─────────────────────────────────────────────────────
 
 @router.callback_query(F.data == "subscribe")
 async def cb_subscribe_menu(callback: CallbackQuery) -> None:
@@ -34,13 +36,16 @@ async def cb_subscribe_menu(callback: CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("plans:period:"))
 async def cb_period_toggle(callback: CallbackQuery) -> None:
     """Switch between monthly and annual view."""
-    period = callback.data.split("plans:period:")[1]  # "month" or "year"
+    period = callback.data.split("plans:period:")[1]
     await callback.message.edit_reply_markup(reply_markup=plans_kb(period=period))
     await callback.answer()
 
 
+# ── Checkout confirmation screen ──────────────────────────────────────────────
+
 @router.callback_query(F.data.startswith("subscribe:"))
 async def cb_subscribe_plan(callback: CallbackQuery) -> None:
+    """Show checkout screen with auto-renew toggle."""
     parts = callback.data.split(":")
     plan_id = parts[1]
     period = parts[2] if len(parts) >= 3 else "month"
@@ -48,6 +53,68 @@ async def cb_subscribe_plan(callback: CallbackQuery) -> None:
     if plan_id not in PAID_PLANS:
         await callback.answer("Неверный тариф", show_alert=True)
         return
+
+    plan = PLANS[plan_id]
+    is_annual = period == "year"
+    price_str = f"{plan['price_rub_year']}₽/год" if is_annual else f"{plan['price_rub']}₽/мес"
+    period_label = "12 месяцев (−17%)" if is_annual else "1 месяц"
+
+    text = (
+        f"🧾 *Оформление подписки*\n\n"
+        f"{plan['emoji']} *{plan['name']}* — {price_str}\n"
+        f"📅 Период: {period_label}\n\n"
+        f"{plan['description']}\n\n"
+        f"Отметь галочку, чтобы бот автоматически присылал счёт на продление "
+        f"за 3 дня до истечения подписки. Оплата всегда требует твоего подтверждения."
+    )
+    await callback.message.answer(
+        text,
+        parse_mode="Markdown",
+        reply_markup=checkout_kb(plan_id, period, auto_renew=False),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("checkout:toggle:"))
+async def cb_checkout_toggle(callback: CallbackQuery) -> None:
+    """Toggle auto-renew checkbox on checkout screen."""
+    # checkout:toggle:{plan_id}:{period}
+    parts = callback.data.split(":")
+    plan_id = parts[2]
+    period = parts[3]
+
+    # Read current state from the Pay button's callback_data
+    # Find current auto_renew from keyboard
+    current_kb = callback.message.reply_markup
+    pay_data = ""
+    for row in current_kb.inline_keyboard:
+        for btn in row:
+            if btn.callback_data and btn.callback_data.startswith("checkout:pay:"):
+                pay_data = btn.callback_data
+    current_renew = pay_data.endswith(":1") if pay_data else False
+    new_renew = not current_renew
+
+    await callback.message.edit_reply_markup(
+        reply_markup=checkout_kb(plan_id, period, auto_renew=new_renew)
+    )
+    await callback.answer("✅ Автопродление включено" if new_renew else "☐ Автопродление отключено")
+
+
+@router.callback_query(F.data.startswith("checkout:pay:"))
+async def cb_checkout_pay(callback: CallbackQuery) -> None:
+    """Send invoice after checkout confirmation."""
+    # checkout:pay:{plan_id}:{period}:{auto_renew}
+    parts = callback.data.split(":")
+    plan_id = parts[2]
+    period = parts[3]
+    auto_renew = parts[4] == "1" if len(parts) >= 5 else False
+
+    if plan_id not in PAID_PLANS:
+        await callback.answer("Неверный тариф", show_alert=True)
+        return
+
+    # Save auto-renew preference before payment
+    await set_preference(callback.from_user.id, "auto_renew", "1" if auto_renew else "0")
 
     plan = PLANS[plan_id]
     is_annual = period == "year"
@@ -63,6 +130,7 @@ async def cb_subscribe_plan(callback: CallbackQuery) -> None:
         payload = f"subscription_{plan_id}_1month"
         price_str = f"{plan['price_rub']}₽/мес"
 
+    await callback.message.edit_reply_markup(reply_markup=None)
     await callback.message.answer_invoice(
         title=f"КопиБОТ {plan['emoji']} {plan['name']}",
         description=f"{plan['description']} • {price_str}",
@@ -72,6 +140,8 @@ async def cb_subscribe_plan(callback: CallbackQuery) -> None:
     )
     await callback.answer()
 
+
+# ── Payment processing ────────────────────────────────────────────────────────
 
 @router.pre_checkout_query()
 async def pre_checkout(query: PreCheckoutQuery) -> None:
@@ -87,14 +157,16 @@ async def successful_payment(message: Message) -> None:
     payload = payment.invoice_payload
     parts = payload.split("_")
     plan_id = parts[1] if len(parts) >= 2 else "basic"
-    period_part = parts[2] if len(parts) >= 3 else "1month"  # "1month" or "12month"
+    period_part = parts[2] if len(parts) >= 3 else "1month"
     months = 12 if period_part.startswith("12") else 1
 
     if plan_id not in PAID_PLANS:
         plan_id = "basic"
 
+    period = "year" if months == 12 else "month"
     await activate_subscription(user_id, plan=plan_id, months=months,
                                  payment_id=payment.telegram_payment_charge_id)
+    await set_preference(user_id, "last_period", period)
     await log_usage(user_id, "payment")
 
     sub = await get_subscription(user_id)
@@ -102,11 +174,15 @@ async def successful_payment(message: Message) -> None:
     plan = PLANS[plan_id]
     period_label = "12 месяцев" if months == 12 else "1 месяц"
 
+    auto_renew = await get_preference(user_id, "auto_renew") == "1"
+    renew_line = "\n🔄 Автопродление: *включено* — пришлём счёт за 3 дня до истечения" if auto_renew else ""
+
     await message.answer(
         f"✅ *Подписка активирована!*\n\n"
         f"{plan['emoji']} Тариф: *{plan['name']}*\n"
         f"📅 Период: *{period_label}*\n"
-        f"📅 Действует до: *{expires}*\n\n"
+        f"📅 Действует до: *{expires}*"
+        f"{renew_line}\n\n"
         f"Спасибо — все функции тарифа доступны.",
         parse_mode="Markdown",
         reply_markup=main_menu(),
