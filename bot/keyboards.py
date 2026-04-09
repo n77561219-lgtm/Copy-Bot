@@ -174,17 +174,36 @@ def subscribe_kb() -> InlineKeyboardMarkup:
     return plans_kb()
 
 
-def plans_kb(current_plan: str = "") -> InlineKeyboardMarkup:
-    """Plan selection keyboard shown in paywall and profile."""
+def plans_kb(current_plan: str = "", period: str = "month") -> InlineKeyboardMarkup:
+    """Plan selection keyboard with monthly/annual toggle."""
     from bot.plans import PLANS, PAID_PLANS
     b = InlineKeyboardBuilder()
+
+    # Period toggle
+    if period == "month":
+        b.row(
+            InlineKeyboardButton(text="📅 Месяц ✅", callback_data="plans:period:month"),
+            InlineKeyboardButton(text="📆 Год −17%", callback_data="plans:period:year"),
+        )
+    else:
+        b.row(
+            InlineKeyboardButton(text="📅 Месяц", callback_data="plans:period:month"),
+            InlineKeyboardButton(text="📆 Год −17% ✅", callback_data="plans:period:year"),
+        )
+
+    # Plan buttons
     for plan_id in PAID_PLANS:
         p = PLANS[plan_id]
         mark = " ✅" if plan_id == current_plan else ""
+        if period == "year":
+            price_str = f"{p['price_rub_year']:,}₽/год ({p['price_rub_year'] // 12}₽/мес)".replace(",", " ")
+        else:
+            price_str = f"{p['price_rub']}₽/мес"
         b.row(InlineKeyboardButton(
-            text=f"{p['emoji']} {p['name']} — {p['price_rub']}₽/мес{mark}",
-            callback_data=f"subscribe:{plan_id}",
+            text=f"{p['emoji']} {p['name']} — {price_str}{mark}",
+            callback_data=f"subscribe:{plan_id}:{period}",
         ))
+
     b.row(InlineKeyboardButton(text="ℹ️ Моя подписка", callback_data="subscription_info"))
     return b.as_markup()
 

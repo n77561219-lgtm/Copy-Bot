@@ -25,8 +25,10 @@ class PlanConfig(TypedDict):
     schedule_slots: int | None      # max schedule time slots; None = unlimited
     style_profiles: int             # max style profiles
     features: list[str]             # style | trends | content_plan | schedule | autopublish | priority
-    price_rub: int                  # price in rubles (0 = free)
+    price_rub: int                  # monthly price in rubles (0 = free)
+    price_rub_year: int             # annual price in rubles (≈10 months, ~17% off)
     stars: int                      # Telegram Stars equivalent (kept for payment invoice)
+    stars_year: int                 # Telegram Stars for annual payment
     description: str
 
 
@@ -39,8 +41,10 @@ PLANS: dict[str, PlanConfig] = {
         "schedule_slots": 0,
         "style_profiles": 1,
         "features": ["style"],
-        "stars": 0,
         "price_rub": 0,
+        "price_rub_year": 0,
+        "stars": 0,
+        "stars_year": 0,
         "description": "5 постов + 1 картинка в месяц • Анализ стиля",
     },
     "trial": {
@@ -51,8 +55,10 @@ PLANS: dict[str, PlanConfig] = {
         "schedule_slots": None,
         "style_profiles": 5,
         "features": ["style", "trends", "content_plan", "schedule", "autopublish", "priority"],
-        "stars": 0,
         "price_rub": 0,
+        "price_rub_year": 0,
+        "stars": 0,
+        "stars_year": 0,
         "description": "7 дней полного доступа",
     },
     "basic": {
@@ -63,8 +69,10 @@ PLANS: dict[str, PlanConfig] = {
         "schedule_slots": 1,
         "style_profiles": 1,
         "features": ["style", "trends"],
-        "stars": 290,
         "price_rub": 390,
+        "price_rub_year": 3_890,   # ~325₽/мес, экономия 790₽
+        "stars": 290,
+        "stars_year": 2_420,       # 290 × 10 (2 месяца бесплатно)
         "description": "30 постов + 5 картинок • Тренды • Анализ стиля",
     },
     "standard": {
@@ -75,8 +83,10 @@ PLANS: dict[str, PlanConfig] = {
         "schedule_slots": 3,
         "style_profiles": 3,
         "features": ["style", "trends", "content_plan", "schedule", "autopublish"],
-        "stars": 590,
         "price_rub": 690,
+        "price_rub_year": 6_890,   # ~574₽/мес, экономия 1 390₽
+        "stars": 590,
+        "stars_year": 4_920,       # 590 × 10
         "description": "80 постов + 15 картинок • Контент-план • Расписание • Автопубликация",
     },
     "pro": {
@@ -87,8 +97,10 @@ PLANS: dict[str, PlanConfig] = {
         "schedule_slots": None,
         "style_profiles": 5,
         "features": ["style", "trends", "content_plan", "schedule", "autopublish", "priority"],
+        "price_rub": 1_290,
+        "price_rub_year": 12_890,  # ~1074₽/мес, экономия 2 590₽
         "stars": 990,
-        "price_rub": 1290,
+        "stars_year": 8_250,       # 990 × 10
         "description": "200 постов + 50 картинок • Для 3–5 каналов • Все функции",
     },
 }
