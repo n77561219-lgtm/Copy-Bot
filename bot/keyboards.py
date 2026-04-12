@@ -157,14 +157,25 @@ def format_choice_kb() -> InlineKeyboardMarkup:
     """Format selection shown after user enters a post topic."""
     b = InlineKeyboardBuilder()
     b.row(
-        InlineKeyboardButton(text="📚 Экспертный", callback_data="format:expert"),
-        InlineKeyboardButton(text="📖 Кейс",       callback_data="format:case"),
+        InlineKeyboardButton(text="📚 Экспертный",  callback_data="format:expert"),
+        InlineKeyboardButton(text="📖 Кейс",        callback_data="format:case"),
     )
     b.row(
-        InlineKeyboardButton(text="💰 Продающий",  callback_data="format:sales"),
-        InlineKeyboardButton(text="🔥 Провокация", callback_data="format:provocation"),
+        InlineKeyboardButton(text="💰 Продающий",   callback_data="format:sales"),
+        InlineKeyboardButton(text="🔥 Провокация",  callback_data="format:provocation"),
     )
-    b.row(InlineKeyboardButton(text="💬 Сторителлинг", callback_data="format:story"))
+    b.row(
+        InlineKeyboardButton(text="💬 Сторителлинг", callback_data="format:story"),
+        InlineKeyboardButton(text="💡 Лайфхак",     callback_data="format:lifehack"),
+    )
+    b.row(
+        InlineKeyboardButton(text="🙋 Личный опыт", callback_data="format:personal"),
+        InlineKeyboardButton(text="🎓 Обучающий",   callback_data="format:educational"),
+    )
+    b.row(
+        InlineKeyboardButton(text="🎬 Рилс-сценарий",        callback_data="format:reels"),
+        InlineKeyboardButton(text="📰 Новость с комментарием", callback_data="format:news"),
+    )
     b.row(InlineKeyboardButton(text="✨ Без формата", callback_data="format:default"))
     return b.as_markup()
 
