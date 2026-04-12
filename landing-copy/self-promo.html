@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Copy-Bot — AI-копирайтер для Telegram, ВК и MAX</title>
+<meta name="description" content="AI-копирайтер для Telegram, ВКонтакте и MAX. Назови тему — получи готовый текст, адаптированный под каждую площадку и написанный в твоём стиле.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================
+   RESET & BASE
+============================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: #09090b;
+  color: #fafafa;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ============================================
+   TOKENS
+============================================ */
+:root {
+  --bg:        #09090b;
+  --surface:   #18181b;
+  --surface2:  #27272a;
+  --primary:   #7c3aed;
+  --primary-h: #6d28d9;
+  --primary-fg:#fafafa;
+  --muted:     #a1a1aa;
+  --muted2:    #71717a;
+  --border:    rgba(255,255,255,0.08);
+  --border2:   rgba(255,255,255,0.14);
+  --success:   #10b981;
+  --r:         14px;
+  --r-lg:      20px;
+}
+
+/* ============================================
+   TYPOGRAPHY
+============================================ */
+.font-display { font-family: 'Space Grotesk', sans-serif; }
+h1,h2,h3,h4 { font-family: 'Space Grotesk', sans-serif; line-height: 1.15; }
+.text-gradient {
+  background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 50%, #60a5fa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ============================================
+   LAYOUT
+============================================ */
+.container { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+section { padding: 96px 0; }
+
+/* ============================================
+   NAV
+============================================ */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  padding: 16px 0;
+  transition: background .3s, border-color .3s;
+}
+nav.scrolled {
+  background: rgba(9,9,11,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-inner {
+  display: flex; align-items: center; justify-content: space-between; gap: 32px;
+}
+.nav-logo {
+  display: flex; align-items: center; gap: 8px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700; font-size: 1.1rem;
+  color: #fafafa; text-decoration: none;
+}
+.nav-logo-icon { font-size: 1.2rem; }
+.nav-links {
+  display: flex; align-items: center; gap: 28px;
+  list-style: none;
+}
+.nav-links a {
+  font-size: .875rem; color: var(--muted);
+  text-decoration: none; transition: color .2s;
+}
+.nav-links a:hover { color: #fafafa; }
+.nav-cta {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 20px;
+  background: var(--primary); color: #fff;
+  border-radius: 10px; font-size: .875rem; font-weight: 600;
+  text-decoration: none; font-family: 'Space Grotesk', sans-serif;
+  transition: background .2s, transform .1s;
+  white-space: nowrap;
+}
+.nav-cta:hover { background: var(--primary-h); }
+.nav-cta:active { transform: scale(.97); }
+.nav-cta svg { width:15px; height:15px; }
+
+/* hamburger */
+.hamburger { display: none; background: none; border: none; cursor: pointer; padding: 4px; }
+.hamburger span { display: block; width: 22px; height: 2px; background: #fafafa; margin: 5px 0; border-radius: 2px; transition: .3s; }
+.mobile-menu {
+  display: none; flex-direction: column; gap: 4px;
+  position: fixed; top: 64px; left: 0; right: 0; z-index: 99;
+  background: rgba(9,9,11,0.97); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px 20px;
+}
+.mobile-menu.open { display: flex; }
+.mobile-menu a {
+  padding: 12px 0; font-size: 1rem; color: var(--muted);
+  text-decoration: none; border-bottom: 1px solid var(--border);
+}
+.mobile-menu a:last-child { border: none; }
+.mobile-menu a:hover { color: #fafafa; }
+
+/* ============================================
+   HERO
+============================================ */
+#hero {
+  padding-top: 160px; padding-bottom: 96px;
+  position: relative; overflow: hidden;
+  text-align: center;
+}
+.hero-bg {
+  position: absolute; inset: 0; z-index: 0;
+  background-image:
+    radial-gradient(ellipse at 20% 40%, rgba(79,70,229,.28) 0, transparent 55%),
+    radial-gradient(ellipse at 80% 15%, rgba(124,58,237,.22) 0, transparent 50%),
+    radial-gradient(ellipse at 55% 80%, rgba(14,165,233,.14) 0, transparent 45%);
+  animation: blobDrift 10s ease-in-out infinite alternate;
+}
+@keyframes blobDrift {
+  from { transform: scale(1) translate(0,0); }
+  to   { transform: scale(1.04) translate(-10px, 8px); }
+}
+.hero-bg::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(to bottom, rgba(9,9,11,.5), rgba(9,9,11,.85) 90%, #09090b);
+}
+.hero-inner { position: relative; z-index: 1; }
+
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 14px;
+  background: rgba(124,58,237,.12); border: 1px solid rgba(124,58,237,.3);
+  border-radius: 100px; font-size: .8rem; color: var(--muted);
+  margin-bottom: 28px;
+}
+.hero-badge .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+h1.hero-title {
+  font-size: clamp(2.4rem, 6vw, 4.5rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  margin-bottom: 24px;
+  line-height: 1.08;
+}
+.hero-title .accent { display: block; }
+
+.hero-sub {
+  font-size: clamp(1rem, 2.5vw, 1.2rem);
+  color: var(--muted);
+  max-width: 620px;
+  margin: 0 auto 36px;
+  line-height: 1.7;
+}
+
+.hero-actions {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  margin-bottom: 48px;
+}
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 14px 32px;
+  background: var(--primary); color: #fff;
+  border-radius: 12px; font-size: 1rem; font-weight: 700;
+  text-decoration: none; font-family: 'Space Grotesk', sans-serif;
+  box-shadow: 0 0 24px rgba(124,58,237,.4), 0 0 60px rgba(124,58,237,.15);
+  transition: background .2s, box-shadow .2s, transform .1s;
+}
+.btn-primary:hover { background: var(--primary-h); box-shadow: 0 0 32px rgba(124,58,237,.55); }
+.btn-primary:active { transform: scale(.97); }
+.btn-primary svg { width:18px; height:18px; }
+.hero-microcopy { font-size: .83rem; color: var(--muted2); }
+
+/* platform pills */
+.platform-strip {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
+}
+@keyframes floatY {
+  0%,100% { transform: translateY(0); }
+  50%      { transform: translateY(-7px); }
+}
+.plt-pill {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px;
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: 12px;
+  animation: floatY 3.6s ease-in-out infinite;
+  transition: border-color .2s;
+}
+.plt-pill:hover { border-color: rgba(124,58,237,.5); }
+.plt-pill.f1 { animation-delay: 0s; }
+.plt-pill.f2 { animation-delay: .6s; }
+.plt-pill.f3 { animation-delay: 1.2s; }
+.plt-pill-icon { font-size: 1.1rem; flex-shrink: 0; }
+.plt-pill-name { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: .85rem; }
+.plt-pill-desc { font-size: .72rem; color: var(--muted); margin-top: 1px; }
+
+/* ============================================
+   SECTION HEADER
+============================================ */
+.section-header { text-align: center; margin-bottom: 56px; }
+.section-header .label {
+  display: inline-block;
+  font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--primary); margin-bottom: 12px;
+}
+h2.section-title {
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  font-weight: 800; letter-spacing: -.03em;
+  margin-bottom: 16px;
+}
+.section-sub { font-size: 1.05rem; color: var(--muted); max-width: 520px; margin: 0 auto; }
+
+/* ============================================
+   FEATURES
+============================================ */
+#features { background: var(--surface); }
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+}
+.feat-card {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 28px;
+  transition: border-color .2s, transform .2s;
+}
+.feat-card:hover { border-color: rgba(124,58,237,.35); transform: translateY(-3px); }
+.feat-icon {
+  width: 44px; height: 44px; border-radius: 12px;
+  background: rgba(124,58,237,.12);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 16px;
+}
+.feat-icon svg { width: 22px; height: 22px; stroke: #a78bfa; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.feat-title { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 1rem; margin-bottom: 8px; }
+.feat-desc { font-size: .875rem; color: var(--muted); line-height: 1.65; }
+
+/* ============================================
+   HOW IT WORKS
+============================================ */
+.steps-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px;
+  position: relative;
+}
+.steps-grid::before {
+  content: '';
+  position: absolute; top: 36px; left: calc(16% + 24px); right: calc(16% + 24px);
+  height: 1px; border-top: 2px dashed rgba(124,58,237,.25); z-index: 0;
+}
+.step-card {
+  text-align: center; position: relative; z-index: 1;
+}
+.step-num {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 3.5rem; font-weight: 800;
+  color: rgba(124,58,237,.12); line-height: 1;
+  margin-bottom: 12px;
+}
+.step-title { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 1.1rem; margin-bottom: 8px; }
+.step-desc { font-size: .875rem; color: var(--muted); line-height: 1.65; }
+
+/* ============================================
+   AUDIENCE
+============================================ */
+#audience { background: var(--surface); }
+.audience-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px;
+}
+.aud-card {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 28px;
+  transition: border-color .2s, transform .2s;
+}
+.aud-card:hover { border-color: rgba(124,58,237,.35); transform: translateY(-3px); }
+.aud-icon {
+  width: 44px; height: 44px; border-radius: 12px;
+  background: rgba(124,58,237,.12);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 16px;
+}
+.aud-icon svg { width: 22px; height: 22px; stroke: #a78bfa; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.aud-title { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 1rem; margin-bottom: 8px; }
+.aud-desc { font-size: .875rem; color: var(--muted); line-height: 1.65; }
+
+/* ============================================
+   PRICING
+============================================ */
+.pricing-note {
+  text-align: center;
+  font-size: .85rem; color: var(--muted);
+  margin-bottom: 40px;
+  padding: 12px 20px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; display: inline-block;
+}
+.pricing-note-wrap { text-align: center; margin-bottom: 40px; }
+.pricing-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  align-items: start;
+}
+.pc {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 28px 24px;
+  position: relative;
+  transition: transform .2s, border-color .2s;
+}
+.pc:hover { transform: translateY(-3px); }
+.pc.feat {
+  border: 2px solid var(--primary);
+  background: rgba(124,58,237,.06);
+  transform: translateY(-6px);
+}
+.pc.feat:hover { transform: translateY(-9px); }
+.pop-badge {
+  position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+  background: var(--primary); color: #fff;
+  font-family: 'Space Grotesk', sans-serif; font-size: .72rem; font-weight: 700;
+  padding: 4px 14px; border-radius: 100px; white-space: nowrap;
+}
+.plan-name { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 1.1rem; margin-bottom: 4px; }
+.plan-desc { font-size: .8rem; color: var(--muted); margin-bottom: 16px; }
+.plan-price { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 1.9rem; margin-bottom: 2px; }
+.plan-price .unit { font-size: .85rem; font-weight: 400; color: var(--muted); }
+.plan-period { font-size: .75rem; color: var(--muted2); margin-bottom: 20px; }
+.plan-divider { height: 1px; background: var(--border); margin-bottom: 18px; }
+.plan-feats { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+.plan-feats li {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: .83rem; color: var(--muted); line-height: 1.4;
+}
+.plan-feats li::before {
+  content: ''; flex-shrink: 0; margin-top: 3px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: rgba(16,185,129,.15);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3 8l3.5 3.5L13 5' stroke='%2310b981' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-size: 100%; display: block;
+}
+.plan-feats li.dim { color: var(--muted2); opacity: .5; }
+.plan-feats li.dim::before {
+  background: rgba(113,113,122,.1);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8h8' stroke='%2371717a' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-size: 100%;
+}
+.btn-plan {
+  display: block; width: 100%; text-align: center;
+  padding: 11px 16px;
+  border-radius: 10px; font-size: .875rem; font-weight: 600;
+  text-decoration: none; font-family: 'Space Grotesk', sans-serif;
+  transition: background .2s, transform .1s;
+}
+.btn-plan:active { transform: scale(.97); }
+.btn-plan-ghost {
+  background: var(--surface2); color: #fafafa;
+  border: 1px solid var(--border2);
+}
+.btn-plan-ghost:hover { background: rgba(255,255,255,.08); }
+.btn-plan-primary {
+  background: var(--primary); color: #fff;
+  box-shadow: 0 0 20px rgba(124,58,237,.4);
+}
+.btn-plan-primary:hover { background: var(--primary-h); }
+
+/* payment note */
+.payment-note {
+  margin-top: 32px; padding: 20px 24px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); display: flex; gap: 16px; align-items: flex-start;
+}
+.payment-note-ico { font-size: 1.3rem; flex-shrink: 0; }
+.payment-note-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: .9rem; margin-bottom: 4px; }
+.payment-note-txt { font-size: .8rem; color: var(--muted); line-height: 1.65; }
+
+/* ============================================
+   CTA
+============================================ */
+#cta {
+  text-align: center;
+  background: linear-gradient(135deg, rgba(124,58,237,.08) 0, rgba(14,165,233,.04) 100%);
+  border-top: 1px solid var(--border);
+}
+.cta-title {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 800; letter-spacing: -.04em; margin-bottom: 16px;
+}
+.cta-sub { font-size: 1.05rem; color: var(--muted); max-width: 520px; margin: 0 auto 36px; }
+
+/* ============================================
+   FOOTER
+============================================ */
+footer {
+  border-top: 1px solid rgba(255,255,255,.06);
+  padding: 32px 0;
+}
+.footer-inner {
+  display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: space-between; gap: 16px;
+}
+.footer-logo {
+  display: flex; align-items: center; gap: 8px;
+  font-family: 'Space Grotesk', sans-serif; font-weight: 700;
+  color: #fafafa; text-decoration: none;
+}
+.footer-tagline { font-size: .8rem; color: var(--muted); }
+.footer-copy { font-size: .8rem; color: var(--muted2); }
+
+/* ============================================
+   REVEAL ANIMATION
+============================================ */
+.reveal {
+  opacity: 0; transform: translateY(28px);
+  transition: opacity .6s ease, transform .6s ease;
+}
+.reveal.visible { opacity: 1; transform: none; }
+.d1 { transition-delay: .05s; }
+.d2 { transition-delay: .12s; }
+.d3 { transition-delay: .19s; }
+.d4 { transition-delay: .26s; }
+
+/* ============================================
+   RESPONSIVE
+============================================ */
+@media (max-width: 900px) {
+  .pricing-grid { grid-template-columns: repeat(2, 1fr); }
+  .pc.feat { transform: none; }
+  .pc.feat:hover { transform: translateY(-3px); }
+  .steps-grid { grid-template-columns: 1fr; gap: 24px; }
+  .steps-grid::before { display: none; }
+}
+@media (max-width: 640px) {
+  section { padding: 64px 0; }
+  #hero { padding-top: 120px; }
+  .pricing-grid { grid-template-columns: 1fr; }
+  .nav-links { display: none; }
+  .hamburger { display: block; }
+  .features-grid { grid-template-columns: 1fr; }
+  .audience-grid { grid-template-columns: 1fr; }
+  .platform-strip { flex-direction: column; align-items: center; }
+  h2.section-title { font-size: 1.8rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-bg, .hero-badge .dot, .plt-pill { animation: none; }
+  .reveal { opacity: 1; transform: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== NAV ===== -->
+<nav id="nav">
+  <div class="container">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo">
+        <span class="nav-logo-icon">⚡</span> Copy-Bot
+      </a>
+      <ul class="nav-links">
+        <li><a href="#features">Возможности</a></li>
+        <li><a href="#how">Как работает</a></li>
+        <li><a href="#audience">Для кого</a></li>
+        <li><a href="#pricing">Тарифы</a></li>
+      </ul>
+      <a href="https://t.me/CopyBot" target="_blank" rel="noopener noreferrer" class="nav-cta">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>
+        Попробовать
+      </a>
+      <button class="hamburger" id="hbg" aria-label="Меню">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</nav>
+<div class="mobile-menu" id="mobileMenu">
+  <a href="#features" onclick="closeMobile()">Возможности</a>
+  <a href="#how" onclick="closeMobile()">Как работает</a>
+  <a href="#audience" onclick="closeMobile()">Для кого</a>
+  <a href="#pricing" onclick="closeMobile()">Тарифы</a>
+  <a href="https://t.me/CopyBot" target="_blank" rel="noopener noreferrer">Попробовать →</a>
+</div>
+
+<!-- ===== HERO ===== -->
+<section id="hero">
+  <div class="hero-bg"></div>
+  <div class="container">
+    <div class="hero-inner">
+
+      <div class="hero-badge reveal">
+        <span class="dot"></span>
+        Бот запущен и работает
+      </div>
+
+      <h1 class="hero-title reveal d1">
+        Пиши посты<br>
+        за <span class="accent text-gradient">30 секунд.</span>
+      </h1>
+
+      <p class="hero-sub reveal d2">
+        AI-копирайтер для Telegram, ВКонтакте и MAX. Назови тему — получи готовый текст,
+        адаптированный под каждую площадку и написанный в твоём стиле.
+      </p>
+
+      <div class="hero-actions reveal d3">
+        <a href="https://t.me/CopyBot" target="_blank" rel="noopener noreferrer" class="btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>
+          Попробовать бесплатно
+        </a>
+        <span class="hero-microcopy">3 поста бесплатно, без карты</span>
+      </div>
+
+      <div class="platform-strip reveal d4">
+        <div class="plt-pill f1">
+          <span class="plt-pill-icon">✈️</span>
+          <div class="plt-pill-info">
+            <div class="plt-pill-name">Telegram</div>
+            <div class="plt-pill-desc">Короткие абзацы, эмодзи-акценты</div>
+          </div>
+        </div>
+        <div class="plt-pill f2">
+          <span class="plt-pill-icon">🔵</span>
+          <div class="plt-pill-info">
+            <div class="plt-pill-name">ВКонтакте</div>
+            <div class="plt-pill-desc">Хэштеги, структура поста</div>
+          </div>
+        </div>
+        <div class="plt-pill f3">
+          <span class="plt-pill-icon">💬</span>
+          <div class="plt-pill-info">
+            <div class="plt-pill-name">MAX</div>
+            <div class="plt-pill-desc">Лаконичный заголовок, чёткий месседж</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ===== FEATURES ===== -->
+<section id="features">
+  <div class="container">
+    <div class="section-header reveal">
+      <div class="label">Возможности</div>
+      <h2 class="section-title">Один запрос — три варианта поста<br>под три площадки</h2>
+    </div>
+    <div class="features-grid">
+
+      <div class="feat-card reveal d1">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+        </div>
+        <div class="feat-title">10+ форматов постов</div>
+        <div class="feat-desc">Экспертный, сторителлинг, список, провокация, кейс и другие — выбирай формат под задачу</div>
+      </div>
+
+      <div class="feat-card reveal d2">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor" stroke="none"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+        </div>
+        <div class="feat-title">Адаптация под площадку</div>
+        <div class="feat-desc">Короткие абзацы для Telegram, хэштеги для ВК, лаконичный стиль для MAX</div>
+      </div>
+
+      <div class="feat-card reveal d3">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
+        </div>
+        <div class="feat-title">Твой стиль письма</div>
+        <div class="feat-desc">Загрузи примеры постов — бот научится писать в твоём тоне и с твоей подачей</div>
+      </div>
+
+      <div class="feat-card reveal d4">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+        </div>
+        <div class="feat-title">Генерация тем</div>
+        <div class="feat-desc">Нет идей? Бот предложит темы по твоей нише — просто выбери и получи готовый текст</div>
+      </div>
+
+      <div class="feat-card reveal d1">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h5"/><path d="M17.5 17.5 16 16.3V14"/><circle cx="16" cy="16" r="6"/></svg>
+        </div>
+        <div class="feat-title">Очередь публикаций</div>
+        <div class="feat-desc">Поставь посты в расписание — бот опубликует их в нужный день и время</div>
+      </div>
+
+      <div class="feat-card reveal d2">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/></svg>
+        </div>
+        <div class="feat-title">Оплата картой</div>
+        <div class="feat-desc">Visa, Mastercard, Мир — прямо в боте через ЮКасса. Без иностранных сервисов</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ===== HOW IT WORKS ===== -->
+<section id="how">
+  <div class="container">
+    <div class="section-header reveal">
+      <div class="label">Как работает</div>
+      <h2 class="section-title">Три шага — пост <span class="text-gradient">готов</span></h2>
+    </div>
+    <div class="steps-grid">
+      <div class="step-card reveal d1">
+        <div class="step-num">01</div>
+        <div class="step-title">Назови тему</div>
+        <div class="step-desc">Напиши боту тему поста или выбери из предложенных по твоей нише</div>
+      </div>
+      <div class="step-card reveal d2">
+        <div class="step-num">02</div>
+        <div class="step-title">Выбери формат</div>
+        <div class="step-desc">Экспертный, список, сторителлинг — 10+ форматов на выбор</div>
+      </div>
+      <div class="step-card reveal d3">
+        <div class="step-num">03</div>
+        <div class="step-title">Получи 3 поста</div>
+        <div class="step-desc">За 30 секунд — готовые тексты для Telegram, ВКонтакте и MAX</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== AUDIENCE ===== -->
+<section id="audience">
+  <div class="container">
+    <div class="section-header reveal">
+      <div class="label">Для кого</div>
+      <h2 class="section-title">Для <span class="text-gradient">кого</span> Copy-Bot</h2>
+    </div>
+    <div class="audience-grid">
+
+      <div class="aud-card reveal d1">
+        <div class="aud-icon">
+          <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div class="aud-title">Авторы каналов</div>
+        <div class="aud-desc">Знаешь о чём писать, но тратишь часы на «как». Copy-Bot превращает идею в пост за 30 секунд.</div>
+      </div>
+
+      <div class="aud-card reveal d2">
+        <div class="aud-icon">
+          <svg viewBox="0 0 24 24"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
+        </div>
+        <div class="aud-title">SMM-менеджеры</div>
+        <div class="aud-desc">Ведёшь несколько аккаунтов? Генерируй контент для всех площадок одним запросом.</div>
+      </div>
+
+      <div class="aud-card reveal d3">
+        <div class="aud-icon">
+          <svg viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+        </div>
+        <div class="aud-title">Админы сообществ</div>
+        <div class="aud-desc">Регулярный контент без выгорания. Поставь посты в очередь и забудь.</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ===== PRICING ===== -->
+<section id="pricing">
+  <div class="container">
+    <div class="section-header reveal">
+      <div class="label">Тарифы</div>
+      <h2 class="section-title">Простые <span class="text-gradient">тарифы</span></h2>
+      <p class="section-sub">Оплата картой через ЮКасса — прямо в боте</p>
+    </div>
+
+    <div class="pricing-grid">
+
+      <!-- Free -->
+      <div class="pc reveal d1">
+        <div class="plan-name">Free</div>
+        <div class="plan-desc">5 постов/мес</div>
+        <div class="plan-price" style="color:var(--success);">Бесплатно</div>
+        <div class="plan-period">навсегда · без карты</div>
+        <div class="plan-divider"></div>
+        <ul class="plan-feats">
+          <li>5 постов в месяц</li>
+          <li>1 изображение в месяц</li>
+          <li>Все форматы</li>
+          <li>3 площадки</li>
+          <li class="dim">Тренды и темы</li>
+          <li class="dim">Расписание</li>
+        </ul>
+        <a href="https://t.me/CopyBot" target="_blank" rel="noopener noreferrer" class="btn-plan btn-plan-ghost">Начать</a>
+      </div>
+
+      <!-- Базовый -->
+      <div class="pc reveal d2">
+        <div class="plan-name">Базовый</div>
+        <div class="plan-desc">30 постов/мес</div>
+        <div class="plan-price">390₽<span class="unit">/мес</span></div>
+        <div class="plan-period">или 3 890₽/год — 2 мес. бесплатно</div>
+        <div class="plan-divider"></div>
+        <ul class="plan-feats">
+          <li>30 постов в месяц</li>
+          <li>5 изображений в месяц</li>
+          <li>Все форматы</li>
+          <li>Стиль канала</li>
+          <li>Тренды и темы</li>
+          <li class="dim">Расписание</li>
+        </ul>
+        <a href="https://t.me/CopyBot" target="_blank" rel="noopener noreferrer" class="btn-plan btn-plan-ghost">Начать</a>
+      </div>
+
+      <!-- Стандарт -->
+      <div class="pc feat reveal d3">
+        <div class="pop-badge">★ Популярный</div>
+        <div class="plan-name" style="color:#c084fc;">Стандарт</div>
+        <div class="plan-desc">80 постов/мес</div>
+        <div class="plan-price" style="background:linear-gradient(135deg,#c084fc,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">690₽<span class="unit" style="-webkit-text-fill-color:var(--muted)">/мес</span></div>
+        <div class="plan-period">или 6 890₽/год — 2 мес. бесплатно</div>
+        <div class="plan-divider" style="background:rgba(124,58,237,.25)"></div>
+        <ul class="plan-feats">
+          <li>80 постов в месяц</li>
+          <li>15 изображений в месяц</li>
+          <li>Все форматы</li>
+          <li>Стиль (3 профиля)</li>
+          <li>Тренды и темы</li>
+          <li>Расписание публикаций</li>
+          <li>Автопубликация</li>
+        </ul>
+        <a href="https://t.me/CopyBot" target="_blank" rel="noopener noreferrer" class="btn-plan btn-plan-primary">Выбрать Стандарт</a>
+      </div>
+
+      <!-- Про -->
+      <div class="pc reveal d4">
+        <div class="plan-name">Про</div>
+        <div class="plan-desc">∞ постов</div>
+        <div class="plan-price">1 290₽<span class="unit">/мес</span></div>
+        <div class="plan-period">или 12 890₽/год — 2 мес. бесплатно</div>
+        <div class="plan-divider"></div>
+        <ul class="plan-feats">
+          <li>200 постов в месяц</li>
+          <li>50 изображений в месяц</li>
+          <li>Всё из Стандарт</li>
+          <li>Стиль (5 профилей)</li>
+          <li>Приоритетная генерация</li>
+        </ul>
+        <a href="https://t.me/CopyBot" target="_blank" rel="noopener noreferrer" class="btn-plan btn-plan-ghost">Начать</a>
+      </div>
+
+    </div>
+
+    <div class="payment-note reveal">
+      <div class="payment-note-ico">💳</div>
+      <div>
+        <div class="payment-note-title">Как оплатить</div>
+        <div class="payment-note-txt">Оплата картой (Visa, Mastercard, Мир) через ЮКасса — прямо в боте. Подписка продлевается автоматически, отменить можно в любой момент одной кнопкой в настройках бота.</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ===== CTA ===== -->
+<section id="cta">
+  <div class="container" style="text-align:center;">
+    <h2 class="cta-title reveal">Хватит тратить часы на посты</h2>
+    <p class="cta-sub reveal d1">Попробуй Copy-Bot прямо сейчас — 3 поста бесплатно, без регистрации и банковской карты</p>
+    <a href="https://t.me/CopyBot" target="_blank" rel="noopener noreferrer" class="btn-primary reveal d2" style="display:inline-flex;">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>
+      Запустить Copy-Bot
+    </a>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <a href="#" class="footer-logo">
+        <span>⚡</span> Copy-Bot
+      </a>
+      <p class="footer-tagline">AI-копирайтер для Telegram, ВКонтакте и MAX</p>
+      <p class="footer-copy">© 2026 Copy-Bot</p>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* Nav scroll */
+const nav = document.getElementById('nav');
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('scrolled', scrollY > 80);
+}, { passive: true });
+
+/* Hamburger */
+const hbg = document.getElementById('hbg');
+const menu = document.getElementById('mobileMenu');
+hbg.addEventListener('click', () => menu.classList.toggle('open'));
+function closeMobile() { menu.classList.remove('open'); }
+
+/* Reveal on scroll */
+const revealEls = document.querySelectorAll('.reveal');
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); } });
+}, { threshold: 0.12 });
+revealEls.forEach(el => io.observe(el));
+</script>
+</body>
+</html>

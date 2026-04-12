@@ -1,0 +1,1946 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Copy-Bot — Посты для Telegram, ВКонтакте и MAX за 3 минуты</title>
+<meta name="description" content="AI-бот генерирует контент для Telegram, ВКонтакте и MAX прямо в мессенджере. 10+ форматов, расписание публикаций. 3 поста бесплатно, без карты.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;800;900&family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* =============================================
+   RESET & BASE
+============================================= */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+body {
+  font-family: 'Onest', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* Grain texture overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.038;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+/* =============================================
+   DESIGN TOKENS
+============================================= */
+:root {
+  --bg:            #09090b;
+  --surface:       #18181b;
+  --surface-2:     #222226;
+  --accent:        #7c3aed;
+  --accent-h:      #6d28d9;
+  --accent-glow:   rgba(124,58,237,0.35);
+  --accent-sub:    rgba(124,58,237,0.10);
+  --text:          #fafafa;
+  --text-m:        #a1a1aa;
+  --text-d:        #71717a;
+  --border:        rgba(255,255,255,0.08);
+  --border-s:      rgba(255,255,255,0.14);
+  --success:       #10b981;
+  --tg:            #229ED9;
+  --vk:            #0077FF;
+  --mx:            #FF6B35;
+  --r-sm:          10px;
+  --r-md:          16px;
+  --r-lg:          24px;
+}
+
+/* =============================================
+   TYPOGRAPHY
+============================================= */
+h1 { font-family: 'Unbounded', sans-serif; font-size: clamp(2rem,6vw,4.2rem); line-height:1.08; letter-spacing:-0.02em; font-weight:800; }
+h2 { font-family: 'Unbounded', sans-serif; font-size: clamp(1.5rem,3.5vw,2.4rem); line-height:1.15; letter-spacing:-0.02em; font-weight:800; }
+h3 { font-size:1.05rem; font-weight:700; line-height:1.3; }
+p  { color: var(--text-m); line-height:1.72; }
+
+.label {
+  display: inline-flex; align-items:center; gap:6px;
+  font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.1em;
+  color: var(--accent);
+  background: var(--accent-sub);
+  border: 1px solid rgba(124,58,237,0.22);
+  padding: 5px 12px; border-radius:100px;
+  margin-bottom:1.25rem;
+}
+.label::before { content:'◆'; font-size:0.45rem; }
+
+/* =============================================
+   BUTTONS
+============================================= */
+.btn {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:13px 26px; border-radius:var(--r-sm);
+  font-size:0.92rem; font-weight:600; cursor:pointer; border:none;
+  text-decoration:none; transition:all 0.18s ease; white-space:nowrap;
+}
+.btn-primary {
+  background: var(--accent); color:#fff;
+  box-shadow: 0 0 28px var(--accent-glow), 0 4px 14px rgba(0,0,0,0.3);
+}
+.btn-primary:hover {
+  background: var(--accent-h);
+  box-shadow: 0 0 44px var(--accent-glow), 0 6px 20px rgba(0,0,0,0.4);
+  transform: translateY(-2px);
+}
+.btn-primary:active { transform:translateY(0); }
+.btn-ghost {
+  background: transparent; color: var(--text);
+  border: 1px solid var(--border-s);
+}
+.btn-ghost:hover { border-color:var(--accent); color:var(--accent); }
+
+/* Secondary CTA — фиолетовый */
+.btn-violet {
+  background: rgba(124,58,237,.35);
+  color: #e9d5ff;
+  border: 1px solid rgba(124,58,237,.6);
+}
+.btn-violet:hover {
+  background: rgba(124,58,237,.55);
+  border-color: var(--accent);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 0 24px rgba(124,58,237,.35);
+}
+.btn-violet:active { transform:scale(.97); }
+.btn-lg { padding:17px 38px; font-size:1.05rem; border-radius:12px; }
+
+/* =============================================
+   LAYOUT
+============================================= */
+section { padding:96px 0; position:relative; }
+.container { max-width:1200px; margin:0 auto; padding:0 24px; }
+.section-header { margin-bottom:3rem; }
+.section-header p { margin-top:.9rem; max-width:520px; }
+.center { text-align:center; }
+.section-header.center p { margin-left:auto; margin-right:auto; }
+
+/* =============================================
+   CARDS
+============================================= */
+.card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r-md); padding:1.5rem;
+  transition: border-color .2s, box-shadow .2s;
+}
+.card:hover { border-color:var(--border-s); }
+
+/* =============================================
+   REVEAL ANIMATIONS
+============================================= */
+.reveal {
+  opacity:0; transform:translateY(32px);
+  transition: opacity .7s cubic-bezier(.22,.68,0,1.2), transform .7s cubic-bezier(.22,.68,0,1.2);
+}
+.reveal.vis { opacity:1; transform:translateY(0); }
+.d1 { transition-delay:.08s; }
+.d2 { transition-delay:.16s; }
+.d3 { transition-delay:.24s; }
+.d4 { transition-delay:.32s; }
+.d5 { transition-delay:.40s; }
+
+/* =============================================
+   ANIMATED GRADIENT HEADING
+============================================= */
+@keyframes grad-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.grad-text {
+  background: linear-gradient(270deg, #c084fc, #7c3aed, #4f46e5, #06b6d4, #7c3aed, #c084fc) !important;
+  background-size: 300% 300% !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  animation: grad-shift 5s ease infinite;
+}
+
+/* =============================================
+   PLATFORM PILLS (floating)
+============================================= */
+@keyframes float-up {
+  0%,100% { transform:translateY(0); }
+  50%      { transform:translateY(-8px); }
+}
+.platform-strip { display:flex; align-items:center; gap:10px; margin-bottom:2.2rem; flex-wrap:wrap; }
+.plogo {
+  display:flex; align-items:center; gap:8px;
+  padding:9px 15px;
+  background:rgba(255,255,255,.04); border:1px solid var(--border-s);
+  border-radius:12px;
+  color:var(--text-m); font-size:.84rem; font-weight:600;
+  transition:border-color .2s, background .2s;
+  animation: float-up 3.5s ease-in-out infinite;
+}
+.plogo.f1 { animation-delay:0s; }
+.plogo.f2 { animation-delay:.5s; }
+.plogo.f3 { animation-delay:1s; }
+.plogo:hover { color:var(--text); border-color:rgba(124,58,237,.45); background:rgba(124,58,237,.07); }
+.plogo-icon {
+  width:26px; height:26px; border-radius:7px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:800; color:#fff;
+}
+.psep { display:none; }
+
+/* =============================================
+   CARD HOVER LIFT
+============================================= */
+.pain-card {
+  transition:border-color .25s, box-shadow .25s, transform .25s !important;
+}
+.pain-card:hover {
+  border-color:rgba(124,58,237,.35) !important;
+  box-shadow:0 8px 32px rgba(124,58,237,.12) !important;
+  transform:translateY(-4px) !important;
+}
+.bc {
+  transition:border-color .25s, box-shadow .25s, transform .25s !important;
+}
+.bc:hover {
+  border-color:rgba(124,58,237,.3) !important;
+  box-shadow:0 8px 36px rgba(124,58,237,.1) !important;
+  transform:translateY(-4px) !important;
+}
+.tc {
+  transition:border-color .25s, box-shadow .25s, transform .25s !important;
+}
+.tc:hover {
+  border-color:rgba(124,58,237,.35) !important;
+  box-shadow:0 8px 28px rgba(124,58,237,.1) !important;
+  transform:translateY(-4px) !important;
+}
+
+/* =============================================
+   CTA BUTTON PULSE GLOW
+============================================= */
+@keyframes btn-glow-pulse {
+  0%,100% { box-shadow:0 0 28px rgba(124,58,237,.45), 0 4px 14px rgba(0,0,0,.3); }
+  50%      { box-shadow:0 0 52px rgba(124,58,237,.7), 0 4px 24px rgba(0,0,0,.35); }
+}
+.btn-primary {
+  animation: btn-glow-pulse 3s ease-in-out infinite;
+}
+.btn-primary:hover {
+  animation: none;
+  background: var(--accent-h);
+  box-shadow: 0 0 56px rgba(124,58,237,.8), 0 6px 20px rgba(0,0,0,.4);
+  transform: translateY(-2px);
+}
+.btn-primary:active { transform:translateY(0); animation:none; }
+
+/* =============================================
+   STAT COUNTER
+============================================= */
+.stat-n[data-target] { transition:none; }
+
+/* =============================================
+   PARALLAX HERO BLOBS (handled by JS)
+============================================= */
+.blob { will-change:transform; }
+
+/* =============================================
+   NAVIGATION
+============================================= */
+#nav {
+  position:fixed; top:0; left:0; right:0; z-index:100;
+  padding:14px 0;
+  transition: background .3s, border-color .3s, backdrop-filter .3s;
+}
+#nav.scrolled {
+  background:rgba(9,9,11,.88);
+  backdrop-filter:blur(14px) saturate(1.3);
+  border-bottom:1px solid var(--border);
+}
+.nav-inner { display:flex; align-items:center; justify-content:space-between; gap:1.5rem; }
+.nav-logo {
+  display:flex; align-items:center; gap:9px;
+  font-size:1.05rem; font-weight:800; color:var(--text);
+  text-decoration:none; letter-spacing:-.02em; flex-shrink:0;
+}
+.nav-logo-icon {
+  width:32px; height:32px; border-radius:9px;
+  background:var(--accent);
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px;
+  box-shadow:0 0 18px var(--accent-glow);
+}
+.nav-links { display:flex; gap:2rem; list-style:none; }
+.nav-links a { color:var(--text-m); text-decoration:none; font-size:.88rem; font-weight:500; transition:color .2s; }
+.nav-links a:hover { color:var(--text); }
+.nav-right { display:flex; align-items:center; gap:12px; }
+.hamburger { display:none; flex-direction:column; gap:5px; cursor:pointer; padding:4px; }
+.hamburger span { display:block; width:22px; height:2px; background:var(--text); border-radius:2px; transition:all .3s; }
+
+/* Mobile menu */
+#mob-menu {
+  display:none; position:fixed; top:60px; left:0; right:0;
+  background:rgba(9,9,11,.97); backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border); padding:1.5rem; z-index:99;
+}
+#mob-menu ul { list-style:none; display:flex; flex-direction:column; gap:1.1rem; margin-bottom:1.5rem; }
+#mob-menu a { color:var(--text-m); text-decoration:none; font-size:1rem; }
+
+/* =============================================
+   HERO
+============================================= */
+#hero {
+  min-height:100vh; display:flex; align-items:center;
+  padding-top:80px; overflow:hidden;
+}
+.blob {
+  position:absolute; border-radius:50%;
+  filter:blur(80px); pointer-events:none;
+  animation:blob-drift 11s ease-in-out infinite;
+}
+.blob-1 { width:520px; height:520px; background:rgba(79,70,229,.22); top:-120px; left:-120px; }
+.blob-2 { width:420px; height:420px; background:rgba(124,58,237,.18); top:0; right:8%; animation-delay:-4s; }
+.blob-3 { width:360px; height:360px; background:rgba(14,165,233,.13); bottom:5%; left:38%; animation-delay:-7s; }
+@keyframes blob-drift {
+  0%,100% { transform:translate(0,0) scale(1); }
+  33%  { transform:translate(28px,-18px) scale(1.05); }
+  66%  { transform:translate(-18px,14px) scale(0.97); }
+}
+.hero-grid {
+  display:grid; grid-template-columns:1fr 1fr;
+  gap:4rem; align-items:center; position:relative; z-index:1;
+}
+.hero-title { margin-bottom:1.4rem; }
+.hero-sub { font-size:1.05rem; margin-bottom:1.8rem; }
+.hero-actions { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:1.4rem; }
+.hero-micro { font-size:.78rem; color:var(--text-d); display:flex; gap:0; flex-wrap:wrap; }
+.hero-micro span { margin-right:16px; }
+.hero-micro span::before { content:'·'; margin-right:16px; }
+.hero-micro span:first-child::before { content:''; margin-right:0; }
+.hero-trust {
+  display:flex; align-items:center; gap:10px;
+  margin-top:2rem; padding-top:1.8rem; border-top:1px solid var(--border);
+}
+.stars-row { color:#f59e0b; font-size:.88rem; letter-spacing:.05em; }
+.trust-txt { font-size:.83rem; color:var(--text-m); }
+
+/* ---- Phone Mockup ---- */
+.hero-visual { display:flex; justify-content:center; align-items:center; }
+.phone-wrap { position:relative; }
+.phone-glow {
+  position:absolute; inset:-48px;
+  background:radial-gradient(circle, rgba(124,58,237,.3) 0%, transparent 68%);
+  pointer-events:none;
+}
+.phone {
+  width:272px;
+  background:#141420;
+  border-radius:42px; padding:10px;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.1),
+    0 40px 80px rgba(0,0,0,.65),
+    0 0 80px rgba(124,58,237,.18);
+}
+.phone-notch { width:76px; height:22px; background:#0a0a0f; border-radius:11px; margin:0 auto 6px; }
+.phone-screen {
+  background:#1a1d2e; border-radius:30px; overflow:hidden;
+  min-height:460px; display:flex; flex-direction:column;
+}
+.tg-hdr {
+  background:#17212b; padding:11px 13px;
+  display:flex; align-items:center; gap:9px;
+  border-bottom:1px solid rgba(255,255,255,.04);
+}
+.tg-av {
+  width:34px; height:34px; border-radius:50%;
+  background:var(--accent);
+  display:flex; align-items:center; justify-content:center; font-size:15px;
+  box-shadow:0 0 14px var(--accent-glow);
+}
+.tg-name { font-size:.82rem; font-weight:700; color:#fff; line-height:1; }
+.tg-status { font-size:.68rem; color:#4db6ac; margin-top:2px; }
+.tg-chat { flex:1; padding:10px; display:flex; flex-direction:column; gap:7px; overflow:hidden; }
+.msg { max-width:86%; padding:8px 11px; border-radius:11px; font-size:.72rem; line-height:1.5; }
+.msg-u { background:#2b5278; color:#ddd; align-self:flex-end; border-bottom-right-radius:3px; }
+.msg-b { background:#232c39; color:#ccc; align-self:flex-start; border-bottom-left-radius:3px; }
+.typing {
+  display:flex; gap:4px; padding:9px 13px;
+  background:#232c39; border-radius:11px; border-bottom-left-radius:3px;
+  width:fit-content; align-self:flex-start;
+}
+.typing span {
+  width:5px; height:5px; background:#888; border-radius:50%;
+  animation:tdot 1.3s ease infinite;
+}
+.typing span:nth-child(2) { animation-delay:.18s; }
+.typing span:nth-child(3) { animation-delay:.36s; }
+@keyframes tdot { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+.msg-appear { animation:msgIn .3s ease; }
+@keyframes msgIn { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:none} }
+.platform-btns-row { display:flex; gap:4px; margin-top:7px; flex-wrap:wrap; }
+.pbtn {
+  padding:3px 9px; border-radius:20px; font-size:.62rem; font-weight:700; border:none; cursor:pointer;
+}
+.pbtn-tg { background:rgba(34,158,217,.32); color:#7dd3fc; border:1px solid rgba(34,158,217,.5); }
+.pbtn-vk { background:rgba(0,119,255,.32); color:#93c5fd; border:1px solid rgba(0,119,255,.5); }
+.pbtn-mx { background:rgba(255,107,53,.35); color:#fdba74; border:1px solid rgba(255,107,53,.5); }
+
+/* =============================================
+   PROBLEM
+============================================= */
+.pain-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:1rem; max-width:900px; margin:0 auto; }
+.pain-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md);
+  padding:1.4rem; display:flex; gap:.9rem; align-items:flex-start;
+  transition:border-color .3s, box-shadow .3s;
+}
+.pain-card:hover { border-color:rgba(124,58,237,.28); box-shadow:0 4px 24px rgba(124,58,237,.08); }
+.pain-ico {
+  width:42px; height:42px; background:var(--accent-sub); border-radius:10px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:1.3rem;
+}
+.pain-title { font-size:.92rem; font-weight:700; margin-bottom:.35rem; color:var(--text); }
+.pain-text { font-size:.82rem; color:var(--text-m); line-height:1.62; }
+
+/* =============================================
+   HOW IT WORKS
+============================================= */
+.steps {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:0;
+  max-width:880px; margin:0 auto 2.5rem; position:relative;
+}
+.steps::before {
+  content:''; position:absolute;
+  top:31px; left:calc(16.67% + 30px); right:calc(16.67% + 30px);
+  height:2px; background:linear-gradient(to right, var(--accent), rgba(124,58,237,.15)); z-index:0;
+}
+.step { padding:1.4rem; position:relative; z-index:1; text-align:center; }
+.step-num {
+  width:62px; height:62px; border-radius:50%; margin:0 auto 1.1rem;
+  background:var(--surface); border:2px solid var(--accent);
+  display:flex; align-items:center; justify-content:center; font-size:1.3rem;
+  box-shadow:0 0 22px var(--accent-glow);
+}
+.step-title { font-size:.95rem; font-weight:700; margin-bottom:.4rem; }
+.step-text { font-size:.82rem; color:var(--text-m); }
+.step-ex { margin-top:.45rem; font-size:.74rem; color:var(--text-d); font-style:italic; }
+
+/* =============================================
+   FEATURES — BENTO GRID
+============================================= */
+.bento { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+.bc {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg);
+  padding:1.4rem; transition:border-color .3s, box-shadow .3s;
+  overflow:hidden; position:relative;
+}
+.bc:hover { border-color:rgba(124,58,237,.22); box-shadow:0 6px 30px rgba(124,58,237,.09); }
+.bc-main { grid-column:span 2; grid-row:span 2; background:linear-gradient(135deg,#180930,#1a1040); border-color:rgba(124,58,237,.22); }
+.bc-tall { grid-row:span 2; }
+.bc-wide { grid-column:span 2; }
+.bc-full { grid-column:span 4; }
+.bc-ico {
+  width:42px; height:42px; background:var(--accent-sub); border-radius:11px; margin-bottom:.9rem;
+  display:flex; align-items:center; justify-content:center; font-size:1.2rem;
+}
+.bc-title { font-size:.98rem; font-weight:700; margin-bottom:.4rem; }
+.bc-text { font-size:.82rem; color:var(--text-m); line-height:1.62; }
+.bc-hover-tilt { transform-style:preserve-3d; }
+
+.fmt-list { list-style:none; margin-top:.75rem; display:flex; flex-direction:column; gap:5px; }
+.fmt-list li { font-size:.78rem; color:var(--text-m); display:flex; align-items:center; gap:6px; }
+.fmt-list li::before { content:'›'; color:var(--accent); font-size:.9rem; }
+
+.platform-pills { display:flex; gap:7px; margin-top:.9rem; flex-wrap:wrap; }
+.pill {
+  display:flex; align-items:center; gap:5px; padding:5px 11px; border-radius:20px;
+  font-size:.72rem; font-weight:700;
+}
+.pill-tg { background:rgba(34,158,217,.22); color:#7dd3fc; border:1px solid rgba(34,158,217,.48); }
+.pill-vk { background:rgba(0,119,255,.22); color:#93c5fd; border:1px solid rgba(0,119,255,.48); }
+.pill-mx { background:rgba(255,107,53,.22); color:#fdba74; border:1px solid rgba(255,107,53,.48); }
+
+.voice-compare { display:flex; flex-direction:column; gap:8px; margin-top:1rem; }
+.vc-bad, .vc-good {
+  padding:9px 12px; border-radius:9px; font-size:.76rem; line-height:1.55;
+}
+.vc-lbl { font-size:.64rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; opacity:.65; margin-bottom:3px; }
+.vc-bad { background:rgba(239,68,68,.07); border:1px solid rgba(239,68,68,.18); color:#fca5a5; }
+.vc-good { background:rgba(16,185,129,.07); border:1px solid rgba(16,185,129,.18); color:#6ee7b7; }
+
+.mini-cal { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-top:.9rem; }
+.mc-d { aspect-ratio:1; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:.62rem; font-weight:700; }
+.mc-e { background:rgba(255,255,255,.04); color:var(--text-d); }
+.mc-tg { background:rgba(34,158,217,.5); color:#fff; font-weight:800; box-shadow:inset 0 -2px 0 rgba(0,0,0,.2); }
+.mc-vk { background:rgba(0,119,255,.55); color:#fff; font-weight:800; box-shadow:inset 0 -2px 0 rgba(0,0,0,.2); }
+.mc-mx { background:rgba(255,107,53,.58); color:#fff; font-weight:800; box-shadow:inset 0 -2px 0 rgba(0,0,0,.2); }
+.mc-all { background:linear-gradient(135deg,rgba(34,158,217,.55),rgba(124,58,237,.6)); color:#fff; font-weight:800; box-shadow:inset 0 -2px 0 rgba(0,0,0,.2); }
+
+/* =============================================
+   SOCIAL PROOF
+============================================= */
+.stats-bar {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:1px;
+  background:var(--border); border:1px solid var(--border);
+  border-radius:var(--r-md); overflow:hidden; margin-bottom:2.5rem;
+}
+.stat-cell { background:var(--surface); padding:1.5rem; text-align:center; }
+.stat-n {
+  font-size:2.1rem; font-weight:800; letter-spacing:-.04em;
+  background:linear-gradient(135deg, var(--text), #c084fc);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+}
+.stat-l { font-size:.77rem; color:var(--text-d); margin-top:4px; }
+.testimonials { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-bottom:1.5rem; }
+.tc {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md);
+  padding:1.4rem; transition:border-color .3s;
+}
+.tc:hover { border-color:rgba(124,58,237,.28); }
+.tc-stars { color:#f59e0b; font-size:.82rem; margin-bottom:.75rem; }
+.tc-q { font-size:.86rem; color:var(--text-m); line-height:1.72; margin-bottom:1rem; font-style:italic; }
+.tc-author { display:flex; align-items:center; gap:9px; }
+.tc-av {
+  width:34px; height:34px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; font-size:.8rem; font-weight:800; color:#fff; flex-shrink:0;
+}
+.tc-name { font-size:.83rem; font-weight:700; }
+.tc-meta { font-size:.73rem; color:var(--text-d); display:flex; align-items:center; gap:5px; margin-top:2px; }
+.tc-badge {
+  padding:1px 6px; border-radius:4px; font-size:.64rem; font-weight:700;
+}
+.tc-badge.tg { background:rgba(34,158,217,.28); color:#7dd3fc; border:1px solid rgba(34,158,217,.4); }
+.tc-badge.vk { background:rgba(0,119,255,.28); color:#93c5fd; border:1px solid rgba(0,119,255,.4); }
+.tc-badge.smm { background:rgba(124,58,237,.28); color:#c084fc; border:1px solid rgba(124,58,237,.4); }
+
+/* Marquee */
+.mq-wrap { overflow:hidden; padding:.5rem 0; mask-image:linear-gradient(to right, transparent, black 10%, black 90%, transparent); }
+.mq-track { display:flex; gap:10px; width:max-content; }
+.mq-fwd { animation:mq-f 32s linear infinite; }
+.mq-rev { animation:mq-r 32s linear infinite; }
+@keyframes mq-f { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+@keyframes mq-r { from{transform:translateX(-50%)} to{transform:translateX(0)} }
+.mq-item {
+  display:flex; align-items:center; gap:7px; white-space:nowrap;
+  font-size:.8rem; color:var(--text-d); padding:5px 13px;
+  background:var(--surface); border:1px solid var(--border); border-radius:100px;
+}
+.mq-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+
+/* =============================================
+   DEMO SECTION
+============================================= */
+.demo-tabs-row {
+  display:flex; justify-content:space-between; align-items:center;
+  margin-bottom:1.4rem; flex-wrap:wrap; gap:1rem;
+}
+.tab-group { display:flex; gap:6px; align-items:center; }
+.tab-lbl { font-size:.74rem; color:var(--text-d); font-weight:600; margin-right:4px; }
+.tab-btn {
+  padding:6px 13px; border-radius:8px; font-size:.8rem; font-weight:600;
+  cursor:pointer; border:1px solid var(--border); background:transparent;
+  color:var(--text-m); transition:all .18s;
+  display:flex; align-items:center; gap:5px;
+}
+.tab-btn.active { background:var(--accent-sub); border-color:rgba(124,58,237,.4); color:#c084fc; }
+.demo-layout { display:grid; grid-template-columns:1fr 1fr; gap:1rem; align-items:start; }
+.demo-in, .demo-out {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r-md); padding:1.4rem;
+}
+.demo-label {
+  font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em;
+  margin-bottom:.9rem; display:flex; align-items:center; gap:6px;
+}
+.demo-in .demo-label { color:var(--text-d); }
+.demo-out .demo-label { color:var(--accent); }
+.demo-row { display:flex; gap:8px; margin-bottom:.5rem; font-size:.83rem; }
+.demo-k { color:var(--text-d); min-width:68px; }
+.demo-v { color:var(--text); font-weight:600; }
+.demo-result {
+  font-size:.86rem; color:var(--text-m); line-height:1.78;
+  white-space:pre-line; min-height:130px;
+  transition:opacity .25s ease;
+}
+.demo-timing {
+  margin-top:1rem; padding-top:1rem; border-top:1px solid var(--border);
+  font-size:.73rem; color:var(--text-d); display:flex; align-items:center; gap:5px;
+}
+.demo-timing::before { content:'⚡'; }
+.demo-cta { margin-top:2rem; text-align:center; }
+
+/* =============================================
+   PRICING
+============================================= */
+.pricing-note {
+  font-size:.8rem; color:var(--text-d);
+  background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  padding:8px 16px; display:inline-flex; align-items:center; gap:6px; margin-bottom:1.6rem;
+}
+.pricing-proof { display:flex; align-items:center; gap:10px; margin-bottom:2rem; font-size:.84rem; color:var(--text-m); }
+.pricing-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; align-items:start; margin-bottom:2rem; }
+.pc {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r-lg); padding:1.4rem; position:relative;
+  transition:box-shadow .2s;
+}
+.pc.feat {
+  border:2px solid var(--accent);
+  background:linear-gradient(145deg, rgba(124,58,237,.08), rgba(79,70,229,.04));
+  box-shadow:0 0 48px rgba(124,58,237,.14);
+  transform:translateY(-6px);
+}
+.pop-badge {
+  position:absolute; top:-13px; left:50%; transform:translateX(-50%);
+  background:var(--accent); color:#fff;
+  padding:3px 13px; border-radius:100px;
+  font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+  box-shadow:0 4px 14px var(--accent-glow); white-space:nowrap;
+}
+.plan-name { font-size:.76rem; font-weight:800; text-transform:uppercase; letter-spacing:.09em; color:var(--text-d); margin-bottom:.4rem; }
+.plan-desc { font-size:.78rem; color:var(--text-d); margin-bottom:.9rem; }
+.plan-price { font-size:2rem; font-weight:800; letter-spacing:-.04em; line-height:1; margin-bottom:.2rem; }
+.plan-price .unit { font-size:.95rem; font-weight:500; color:var(--text-m); }
+.plan-price.free-price { color:var(--success); }
+.plan-stars { font-size:.75rem; color:var(--text-d); margin-bottom:1.1rem; }
+.plan-divider { height:1px; background:var(--border); margin-bottom:1.1rem; }
+.plan-feats { list-style:none; display:flex; flex-direction:column; gap:7px; margin-bottom:1.4rem; }
+.plan-feats li { font-size:.8rem; color:var(--text-m); display:flex; gap:7px; align-items:flex-start; }
+.plan-feats li::before { content:'✓'; color:var(--success); font-weight:800; flex-shrink:0; }
+.plan-feats li.dim { color:var(--text-d); }
+.plan-feats li.dim::before { content:'–'; color:var(--border-s); }
+
+.stars-box {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md);
+  padding:1.1rem 1.4rem; display:flex; gap:.9rem; align-items:flex-start;
+}
+.stars-box-ico { font-size:1.3rem; flex-shrink:0; margin-top:2px; }
+.stars-box-title { font-size:.86rem; font-weight:700; margin-bottom:.3rem; }
+.stars-box-txt { font-size:.8rem; color:var(--text-m); line-height:1.65; }
+
+/* =============================================
+   AUDIENCE
+============================================= */
+#audience { background: var(--surface); }
+.audience-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 2rem;
+}
+.aud-card {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 1.6rem;
+  transition: border-color .25s, box-shadow .25s, transform .25s;
+}
+.aud-card:hover {
+  border-color: rgba(124,58,237,.35);
+  box-shadow: 0 8px 32px rgba(124,58,237,.1);
+  transform: translateY(-4px);
+}
+.aud-ico { font-size: 2rem; margin-bottom: .9rem; }
+.aud-title {
+  font-size: 1rem; font-weight: 700; color: var(--text);
+  margin-bottom: .5rem;
+}
+.aud-desc {
+  font-size: .84rem; color: var(--text-m); line-height: 1.68;
+  margin-bottom: 1rem;
+}
+.aud-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.aud-tag {
+  font-size: .7rem; font-weight: 600; padding: 3px 10px;
+  background: var(--accent-sub); border: 1px solid rgba(124,58,237,.22);
+  border-radius: 100px; color: #c084fc;
+}
+
+.aud-not-for {
+  background: rgba(239,68,68,.05); border: 1px solid rgba(239,68,68,.15);
+  border-radius: var(--r-md); padding: 1.2rem 1.6rem;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 1rem;
+}
+.aud-nf-title {
+  font-size: .82rem; font-weight: 700; color: var(--text-d);
+  white-space: nowrap;
+}
+.aud-nf-list {
+  display: flex; flex-wrap: wrap; gap: 12px;
+}
+.aud-nf-list span { font-size: .8rem; color: var(--text-d); }
+
+/* =============================================
+   REFERRAL
+============================================= */
+.ref-grid {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:1.25rem;
+  max-width:860px; margin:0 auto;
+}
+.ref-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r-lg); padding:1.75rem 1.5rem; text-align:center;
+  transition:border-color .2s, transform .2s;
+}
+.ref-card:hover { border-color:rgba(124,58,237,.35); transform:translateY(-3px); }
+.ref-ico { font-size:2rem; margin-bottom:.75rem; }
+.ref-lbl { font-size:.68rem; text-transform:uppercase; letter-spacing:.09em; color:var(--text-d); font-weight:700; margin-bottom:.4rem; }
+.ref-val { font-size:2.4rem; font-weight:800; color:var(--accent); line-height:1; margin-bottom:.5rem; }
+.ref-desc { font-size:.8rem; color:var(--text-m); line-height:1.6; }
+.ref-milestones { display:flex; flex-direction:column; gap:.45rem; margin:.75rem 0 .5rem; }
+.ref-milestone {
+  display:flex; justify-content:space-between; align-items:center;
+  background:var(--surface-2); border-radius:8px; padding:.45rem .85rem; font-size:.82rem;
+}
+.ref-m-val { color:var(--text-m); }
+.ref-m-bonus { color:var(--accent); font-weight:700; }
+.ref-cta-note { font-size:.85rem; color:var(--text-m); margin-bottom:1.25rem; }
+.ref-cta-note code {
+  background:var(--surface-2); border:1px solid var(--border);
+  border-radius:6px; padding:2px 8px; font-size:.82rem; color:var(--text);
+}
+
+/* =============================================
+   FAQ
+============================================= */
+.faq-list { max-width:800px; margin:0 auto; display:flex; flex-direction:column; gap:7px; }
+.faq-item {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r-md); overflow:hidden; transition:border-color .25s;
+}
+.faq-item.open { border-color:rgba(124,58,237,.3); }
+.faq-q {
+  padding:1.1rem 1.4rem; cursor:pointer;
+  display:flex; align-items:center; justify-content:space-between; gap:1rem;
+  font-size:.9rem; font-weight:600; color:var(--text); user-select:none; transition:color .2s;
+}
+.faq-q:hover { color:var(--accent); }
+.faq-chevron {
+  width:20px; height:20px; border-radius:50%; background:var(--surface-2); flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:.68rem;
+  transition:transform .3s, background .3s;
+}
+.faq-item.open .faq-chevron { transform:rotate(180deg); background:var(--accent-sub); color:var(--accent); }
+.faq-a { max-height:0; overflow:hidden; transition:max-height .32s ease; }
+.faq-a-inner { padding:0 1.4rem 1.1rem; font-size:.86rem; color:var(--text-m); line-height:1.72; }
+
+/* =============================================
+   FINAL CTA
+============================================= */
+#finalcta { text-align:center; }
+.fcta-inner { max-width:580px; margin:0 auto; }
+.fcta-title { margin-bottom:.9rem; }
+.fcta-sub { margin-bottom:1.8rem; font-size:1rem; }
+.fcta-platforms { display:flex; justify-content:center; gap:10px; margin-bottom:2.2rem; flex-wrap:wrap; }
+.flow-row {
+  display:flex; align-items:center; justify-content:center;
+  gap:7px; margin-top:1.4rem; flex-wrap:wrap;
+}
+.flow-step {
+  display:flex; align-items:center; gap:6px; font-size:.79rem; color:var(--text-m);
+  padding:6px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px;
+}
+.flow-arr { color:var(--text-d); font-size:.7rem; }
+.fcta-micro { margin-top:1.1rem; font-size:.77rem; color:var(--text-d); }
+.fcta-quote { margin-top:1.8rem; padding-top:1.8rem; border-top:1px solid var(--border); font-size:.86rem; color:var(--text-m); font-style:italic; }
+
+/* =============================================
+   FOOTER
+============================================= */
+footer {
+  background:var(--surface); border-top:1px solid var(--border); padding:1.8rem 0;
+}
+.footer-inner { display:flex; align-items:center; justify-content:space-between; gap:1.5rem; flex-wrap:wrap; }
+.footer-links { display:flex; gap:1.8rem; flex-wrap:wrap; }
+.footer-links a { font-size:.8rem; color:var(--text-d); text-decoration:none; transition:color .2s; }
+.footer-links a:hover { color:var(--text-m); }
+.footer-copy { font-size:.78rem; color:var(--text-d); }
+
+/* =============================================
+   RESPONSIVE
+============================================= */
+@media (max-width:1024px) {
+  .pricing-grid { grid-template-columns:repeat(2,1fr); }
+  .pc.feat { transform:none; }
+  .bento { grid-template-columns:repeat(2,1fr); }
+  .bc-main { grid-column:span 2; grid-row:span 1; }
+  .bc-full { grid-column:span 2; }
+  .bc-wide { grid-column:span 2; }
+  .bc-tall { grid-row:span 1; }
+}
+@media (max-width:768px) {
+  section { padding:68px 0; }
+  .hero-grid { grid-template-columns:1fr; text-align:center; }
+  .platform-strip, .hero-actions, .hero-trust, .hero-micro { justify-content:center; }
+  .hero-visual { order:-1; }
+  .phone { width:240px; }
+  .pain-grid { grid-template-columns:1fr; }
+  .steps { grid-template-columns:1fr; }
+  .steps::before { display:none; }
+  .bento { grid-template-columns:1fr; }
+  .bc-main,.bc-full,.bc-wide,.bc-tall { grid-column:span 1; grid-row:span 1; }
+  .audience-grid { grid-template-columns: 1fr; }
+  .testimonials { grid-template-columns:1fr; }
+  .stats-bar { grid-template-columns:1fr; }
+  .demo-layout { grid-template-columns:1fr; }
+  .demo-tabs-row { flex-direction:column; align-items:flex-start; }
+  .pricing-grid { grid-template-columns:1fr; }
+  .ref-grid { grid-template-columns:1fr; }
+  .nav-links, .nav-right .btn { display:none; }
+  .hamburger { display:flex; }
+  .footer-inner { flex-direction:column; text-align:center; }
+  .footer-links { justify-content:center; }
+  h1 { font-size:2.1rem; }
+  h2 { font-size:1.6rem; }
+}
+/* =============================================
+   SCROLL PROGRESS BAR
+============================================= */
+#scroll-progress {
+  position: fixed;
+  top: 0; left: 0;
+  height: 2px;
+  width: 0%;
+  background: linear-gradient(to right, #7c3aed, #c084fc, #06b6d4);
+  z-index: 201;
+  transition: width 0.08s linear;
+  box-shadow: 0 0 8px rgba(192,132,252,0.6);
+}
+
+/* =============================================
+   SECTION DIVIDERS
+============================================= */
+section:not(#hero)::before {
+  content: '';
+  display: block;
+  position: absolute;
+  top: 0; left: 48px; right: 48px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(124,58,237,0.3) 20%, rgba(124,58,237,0.3) 80%, transparent);
+}
+
+/* =============================================
+   BENTO ICON COLORS
+============================================= */
+.bc-voice .bc-ico    { background: rgba(124,58,237,.2);  box-shadow: 0 0 14px rgba(124,58,237,.25); }
+.bc-formats .bc-ico  { background: rgba(16,185,129,.15); box-shadow: 0 0 14px rgba(16,185,129,.2);  }
+.bc-platforms .bc-ico{ background: rgba(6,182,212,.15);  box-shadow: 0 0 14px rgba(6,182,212,.2);   }
+.bc-payment .bc-ico  { background: rgba(52,211,153,.15); box-shadow: 0 0 14px rgba(52,211,153,.2);  }
+.bc-ideas .bc-ico    { background: rgba(245,158,11,.15); box-shadow: 0 0 14px rgba(245,158,11,.2);  }
+.bc-schedule .bc-ico { background: rgba(99,102,241,.15); box-shadow: 0 0 14px rgba(99,102,241,.2);  }
+
+/* =============================================
+   PAIN CARD ACCENT BORDERS
+============================================= */
+.pain-card { border-left: 3px solid transparent; }
+.pain-card.p1 { border-left-color: #6366f1; }
+.pain-card.p1 .pain-ico { background: rgba(99,102,241,.15); }
+.pain-card.p2 { border-left-color: #06b6d4; }
+.pain-card.p2 .pain-ico { background: rgba(6,182,212,.15); }
+.pain-card.p3 { border-left-color: #f59e0b; }
+.pain-card.p3 .pain-ico { background: rgba(245,158,11,.15); }
+.pain-card.p4 { border-left-color: #ef4444; }
+.pain-card.p4 .pain-ico { background: rgba(239,68,68,.15); }
+
+@media (prefers-reduced-motion: reduce) {
+  .blob, .mq-fwd, .mq-rev, .plogo, .btn-primary, .grad-text { animation:none; }
+  .reveal { opacity:1; transform:none; transition:none; }
+  .grad-text { background:linear-gradient(135deg,#c084fc,#7c3aed,#4f46e5) !important; }
+  #scroll-progress { transition: none; }
+}
+</style>
+</head>
+<body>
+<div id="scroll-progress"></div>
+
+<!-- ===========================
+     NAVIGATION
+=========================== -->
+<nav id="nav">
+  <div class="container">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo">
+        <div class="nav-logo-icon">🤖</div>
+        Copy-Bot
+      </a>
+      <ul class="nav-links">
+        <li><a href="#howitworks">Как работает</a></li>
+        <li><a href="#features">Возможности</a></li>
+        <li><a href="#audience">Для кого</a></li>
+        <li><a href="#pricing">Цены</a></li>
+        <li><a href="#referral">Рефералы</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+      <div class="nav-right">
+        <a href="https://t.me/Copy_plan_bot" class="btn btn-primary" style="padding:9px 18px;font-size:.84rem;">Попробовать бесплатно</a>
+        <div class="hamburger" id="ham">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav>
+<div id="mob-menu">
+  <ul>
+    <li><a href="#howitworks">Как работает</a></li>
+    <li><a href="#features">Возможности</a></li>
+    <li><a href="#audience">Для кого</a></li>
+    <li><a href="#pricing">Цены</a></li>
+    <li><a href="#referral">Рефералы</a></li>
+    <li><a href="#faq">FAQ</a></li>
+  </ul>
+  <a href="https://t.me/Copy_plan_bot" class="btn btn-primary" style="width:100%;justify-content:center;">Попробовать бесплатно →</a>
+</div>
+
+<!-- ===========================
+     HERO
+=========================== -->
+<section id="hero">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+  <div class="container">
+    <div class="hero-grid">
+
+      <!-- Content -->
+      <div class="reveal">
+        <div class="label">AI-бот для контент-мейкеров</div>
+        <h1 class="hero-title">
+          Один бот —<br>
+          посты для <span class="grad-text">всех площадок.</span>
+        </h1>
+        <p class="hero-sub">
+          Copy-Bot генерирует контент для Telegram, ВКонтакте и MAX
+          прямо в мессенджере. Без ChatGPT-подписок, без переключения вкладок.
+        </p>
+
+        <div class="platform-strip">
+          <div class="plogo f1">
+            <div class="plogo-icon" style="background:#229ED9;">✈</div>Telegram
+          </div>
+          <div class="plogo f2">
+            <div class="plogo-icon" style="background:#0077FF;font-size:11px;">VK</div>ВКонтакте
+          </div>
+          <div class="plogo f3">
+            <div class="plogo-icon" style="background:#FF6B35;font-size:9px;">MAX</div>MAX
+          </div>
+        </div>
+
+        <div class="hero-actions">
+          <a href="https://t.me/Copy_plan_bot" class="btn btn-primary btn-lg">Попробовать бесплатно →</a>
+          <a href="#howitworks" class="btn btn-ghost btn-lg">Как это работает</a>
+        </div>
+
+        <div class="hero-micro">
+          <span>Нужен только Telegram</span>
+          <span>3 поста бесплатно</span>
+          <span>Без карты</span>
+        </div>
+
+        <div class="hero-trust">
+          <span class="stars-row">★★★★★</span>
+          <span class="trust-txt">Используют <strong>1 200+</strong> авторов на трёх платформах</span>
+        </div>
+      </div>
+
+      <!-- Phone Mockup -->
+      <div class="hero-visual reveal d2">
+        <div class="phone-wrap">
+          <div class="phone-glow"></div>
+          <div class="phone">
+            <div class="phone-notch"></div>
+            <div class="phone-screen">
+              <div class="tg-hdr">
+                <div class="tg-av">🤖</div>
+                <div>
+                  <div class="tg-name">Copy-Bot</div>
+                  <div class="tg-status">● онлайн</div>
+                </div>
+              </div>
+              <div class="tg-chat" id="tg-chat"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ===========================
+     PROBLEM
+=========================== -->
+<section id="problem">
+  <div class="container">
+    <div class="section-header center reveal">
+      <div class="label">Звучит знакомо?</div>
+      <h2>Ведёшь страницы —<br>и каждый пост как мука?</h2>
+      <p>Ты не один. Это испытывают тысячи авторов каналов и сообществ каждый день.</p>
+    </div>
+    <div class="pain-grid">
+      <div class="pain-card p1 reveal d1">
+        <div class="pain-ico">📄</div>
+        <div>
+          <div class="pain-title">Синдром чистого листа</div>
+          <div class="pain-text">Садишься писать — и час смотришь в пустой экран. Идеи заканчиваются быстрее, чем успеваешь их записать.</div>
+        </div>
+      </div>
+      <div class="pain-card p2 reveal d2">
+        <div class="pain-ico">📱</div>
+        <div>
+          <div class="pain-title">Три площадки — втрое больше работы</div>
+          <div class="pain-text">Telegram, ВКонтакте, MAX — у каждой свой формат. Писать один и тот же пост три раза — это каторга.</div>
+        </div>
+      </div>
+      <div class="pain-card p3 reveal d3">
+        <div class="pain-ico">🤖</div>
+        <div>
+          <div class="pain-title">ChatGPT пишет не под твою площадку</div>
+          <div class="pain-text">Получаешь безликий текст, который надо адаптировать для ВКонтакте, сократить для MAX, добавить хэштеги — работы стало больше.</div>
+        </div>
+      </div>
+      <div class="pain-card p4 reveal d4">
+        <div class="pain-ico">🔥</div>
+        <div>
+          <div class="pain-title">Выгорание накрывает</div>
+          <div class="pain-text">Запустил канал с энтузиазмом. Через полгода это каторга, которую хочется бросить. Регулярность убивает удовольствие.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===========================
+     HOW IT WORKS
+=========================== -->
+<section id="howitworks">
+  <div class="container">
+    <div class="section-header center reveal">
+      <div class="label">Как это работает</div>
+      <h2>Три шага — и пост готов</h2>
+      <p>Работаешь в Telegram. Контент — для всех площадок.</p>
+    </div>
+    <div class="steps">
+      <div class="step reveal d1">
+        <div class="step-num">💬</div>
+        <h3 class="step-title">Напиши тему</h3>
+        <p class="step-text">Открой Copy-Bot в Telegram и напиши тему одним словом или предложением.</p>
+        <div class="step-ex">«прокрастинация» или «5 причин не покупать акции»</div>
+      </div>
+      <div class="step reveal d2">
+        <div class="step-num">🎛</div>
+        <h3 class="step-title">Выбери формат</h3>
+        <p class="step-text">Экспертный пост, сторителлинг, кейс, провокация — выбираешь тон и стиль.</p>
+        <div class="step-ex">10+ форматов для любой ниши</div>
+      </div>
+      <div class="step reveal d3">
+        <div class="step-num">✅</div>
+        <h3 class="step-title">Выбери платформу</h3>
+        <p class="step-text">Telegram, ВКонтакте или MAX — бот форматирует пост под правила каждой площадки.</p>
+        <div class="step-ex">Один запрос → три варианта</div>
+      </div>
+    </div>
+    <div style="text-align:center;" class="reveal">
+      <a href="https://t.me/Copy_plan_bot" class="btn btn-violet">Попробовать бесплатно →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===========================
+     FEATURES (BENTO)
+=========================== -->
+<section id="features">
+  <div class="container">
+    <div class="section-header reveal">
+      <div class="label">Возможности</div>
+      <h2>Один бот — три площадки.<br>Всё уже внутри.</h2>
+    </div>
+    <div class="bento">
+
+      <!-- Main: voice -->
+      <div class="bc bc-main bc-voice reveal">
+        <div class="bc-ico">🎙</div>
+        <h3 class="bc-title">Пишет в стиле твоего аккаунта</h3>
+        <p class="bc-text">Бот учитывает нишу, тональность и аудиторию на каждой платформе. Посты звучат как ты — не как ChatGPT.</p>
+        <div class="voice-compare">
+          <div class="vc-bad">
+            <div class="vc-lbl">❌ ChatGPT</div>
+            В современном мире, не секрет, что прокрастинация является распространённой проблемой среди людей...
+          </div>
+          <div class="vc-good">
+            <div class="vc-lbl">✓ Copy-Bot</div>
+            Прокрастинация — не лень. Это ваш мозг, который так старательно избегает дискомфорта, что придумывает 47 причин сначала проверить TikTok.
+          </div>
+        </div>
+      </div>
+
+      <!-- Formats -->
+      <div class="bc bc-tall bc-formats reveal d1">
+        <div class="bc-ico">📐</div>
+        <h3 class="bc-title">10+ форматов</h3>
+        <p class="bc-text">Для любой задачи и ниши</p>
+        <ul class="fmt-list">
+          <li>Экспертный пост</li>
+          <li>Кейс</li>
+          <li>Сторителлинг</li>
+          <li>Провокация / горячее мнение</li>
+          <li>Продающий пост</li>
+          <li>Лайфхак</li>
+          <li>Личный опыт</li>
+          <li>Обучающий</li>
+          <li>Рилс-сценарий</li>
+          <li>Новость с комментарием</li>
+        </ul>
+      </div>
+
+      <!-- Platforms -->
+      <div class="bc bc-platforms reveal d2">
+        <div class="bc-ico">🌐</div>
+        <h3 class="bc-title">TG · VK · MAX</h3>
+        <p class="bc-text">Один запрос — три адаптированных поста под правила каждой площадки.</p>
+        <div class="platform-pills" style="margin-top:1rem;">
+          <div class="pill pill-tg">✈ Telegram</div>
+          <div class="pill pill-vk">VK ВКонтакте</div>
+          <div class="pill pill-mx">MAX</div>
+        </div>
+      </div>
+
+      <!-- Payment -->
+      <div class="bc bc-payment reveal d3">
+        <div class="bc-ico">💳</div>
+        <h3 class="bc-title">Оплата картой</h3>
+        <p class="bc-text">Visa, Mastercard, Мир — прямо в боте через ЮКасса. Без иностранных сервисов.</p>
+      </div>
+
+      <!-- Ideas -->
+      <div class="bc bc-wide bc-ideas reveal d2">
+        <div class="bc-ico">💡</div>
+        <h3 class="bc-title">Идеи и темы по запросу</h3>
+        <p class="bc-text">Не знаешь, о чём писать? Бот предложит 10 тем для твоей ниши за 10 секунд. Никакого ступора перед пустым экраном.</p>
+      </div>
+
+      <!-- Schedule -->
+      <div class="bc bc-full bc-schedule reveal">
+        <div style="display:flex;align-items:flex-start;gap:2rem;flex-wrap:wrap;">
+          <div style="flex:1;min-width:200px;">
+            <div class="bc-ico">🗓</div>
+            <h3 class="bc-title">Расписание на всех площадках</h3>
+            <p class="bc-text">Подготовь неделю контента за один сеанс — бот сохранит очередь для каждой платформы и напомнит вовремя.</p>
+          </div>
+          <div style="flex:1;min-width:180px;">
+            <div class="mini-cal">
+              <div class="mc-d mc-e">Пн</div><div class="mc-d mc-e">Вт</div><div class="mc-d mc-e">Ср</div><div class="mc-d mc-e">Чт</div><div class="mc-d mc-e">Пт</div><div class="mc-d mc-e">Сб</div><div class="mc-d mc-e">Вс</div>
+              <div class="mc-d mc-tg">TG</div><div class="mc-d mc-e"></div><div class="mc-d mc-vk">VK</div><div class="mc-d mc-tg">TG</div><div class="mc-d mc-all">×3</div><div class="mc-d mc-e"></div><div class="mc-d mc-mx">MAX</div>
+              <div class="mc-d mc-all">×3</div><div class="mc-d mc-vk">VK</div><div class="mc-d mc-e"></div><div class="mc-d mc-tg">TG</div><div class="mc-d mc-all">×3</div><div class="mc-d mc-mx">MAX</div><div class="mc-d mc-e"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ===========================
+     AUDIENCE
+=========================== -->
+<section id="audience">
+  <div class="container">
+    <div class="section-header center reveal">
+      <div class="label">Для кого</div>
+      <h2>Узнаёшь себя?</h2>
+      <p>Copy-Bot создан для тех, кто знает о чём писать — но тратит слишком много времени на «как» и «куда».</p>
+    </div>
+    <div class="audience-grid">
+
+      <div class="aud-card reveal d1">
+        <div class="aud-ico">✍️</div>
+        <div class="aud-title">Автор Telegram-канала</div>
+        <div class="aud-desc">Ведёшь канал на 1 000–100 000 подписчиков. Контент выходит нерегулярно — потому что каждый пост это мука. Copy-Bot даёт готовый текст за 30 секунд.</div>
+        <div class="aud-tags">
+          <span class="aud-tag">Финансы</span>
+          <span class="aud-tag">Лайфстайл</span>
+          <span class="aud-tag">Бизнес</span>
+          <span class="aud-tag">Технологии</span>
+        </div>
+      </div>
+
+      <div class="aud-card reveal d2">
+        <div class="aud-ico">📣</div>
+        <div class="aud-title">SMM-менеджер</div>
+        <div class="aud-desc">Ведёшь 3–10 клиентских аккаунтов на разных площадках. Адаптировать один пост под Telegram, ВКонтакте и MAX вручную — это часы. Copy-Bot делает это в один клик.</div>
+        <div class="aud-tags">
+          <span class="aud-tag">Агентства</span>
+          <span class="aud-tag">Фрилансеры</span>
+          <span class="aud-tag">Мультиаккаунт</span>
+        </div>
+      </div>
+
+      <div class="aud-card reveal d3">
+        <div class="aud-ico">📊</div>
+        <div class="aud-title">Инфобизнес и эксперты</div>
+        <div class="aud-desc">Нужен контент для прогрева на всех площадках одновременно. Один запрос — три адаптированных варианта под Telegram, ВКонтакте и MAX.</div>
+        <div class="aud-tags">
+          <span class="aud-tag">Эксперты</span>
+          <span class="aud-tag">Коучи</span>
+          <span class="aud-tag">Онлайн-курсы</span>
+        </div>
+      </div>
+
+      <div class="aud-card reveal d4">
+        <div class="aud-ico">🏢</div>
+        <div class="aud-title">Владелец сообщества ВКонтакте</div>
+        <div class="aud-desc">Сообщество требует регулярных постов с хэштегами, вовлекающими вопросами и правильной структурой. Бот знает формат ВК и сразу выдаёт готовый текст.</div>
+        <div class="aud-tags">
+          <span class="aud-tag">ВКонтакте</span>
+          <span class="aud-tag">Сообщества</span>
+          <span class="aud-tag">Образование</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="aud-not-for reveal">
+      <div class="aud-nf-title">Copy-Bot не подойдёт, если…</div>
+      <div class="aud-nf-list">
+        <span>❌ Нужны новостные тексты без редактуры</span>
+        <span>❌ Требуется SEO-статья на 10 000 слов</span>
+        <span>❌ Нет темы — совсем никакой идеи</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ===========================
+     SOCIAL PROOF
+=========================== -->
+<section id="proof">
+  <div class="container">
+    <div class="section-header center reveal">
+      <div class="label">Социальное доказательство</div>
+      <h2>Авторы на трёх платформах<br>уже пишут быстрее</h2>
+    </div>
+
+    <div class="stats-bar reveal">
+      <div class="stat-cell"><div class="stat-n" data-target="1200" data-suffix="+">0</div><div class="stat-l">авторов на TG, ВК и MAX</div></div>
+      <div class="stat-cell"><div class="stat-n" data-target="84000" data-suffix="+">0</div><div class="stat-l">постов создано</div></div>
+      <div class="stat-cell"><div class="stat-n" data-target="4.8" data-suffix=" / 5">0</div><div class="stat-l">средняя оценка</div></div>
+    </div>
+
+    <div class="testimonials">
+      <div class="tc reveal d1">
+        <div class="tc-stars">★★★★★</div>
+        <div class="tc-q">«Раньше один пост занимал час. Теперь — 5 минут с правками. Контент-план закрыт на неделю вперёд.»</div>
+        <div class="tc-author">
+          <div class="tc-av" style="background:linear-gradient(135deg,#667eea,#764ba2)">АМ</div>
+          <div>
+            <div class="tc-name">Алексей М.</div>
+            <div class="tc-meta"><span class="tc-badge tg">TG</span>Финансы · 14 000 подп.</div>
+          </div>
+        </div>
+      </div>
+      <div class="tc reveal d2">
+        <div class="tc-stars">★★★★★</div>
+        <div class="tc-q">«Веду сообщество ВКонтакте. Copy-Bot сразу делает пост в VK-формате с хэштегами — почти ничего не правлю.»</div>
+        <div class="tc-author">
+          <div class="tc-av" style="background:linear-gradient(135deg,#f093fb,#f5576c)">МК</div>
+          <div>
+            <div class="tc-name">Марина К.</div>
+            <div class="tc-meta"><span class="tc-badge vk">VK</span>Лайфстайл · 22 000 уч.</div>
+          </div>
+        </div>
+      </div>
+      <div class="tc reveal d3">
+        <div class="tc-stars">★★★★★</div>
+        <div class="tc-q">«Веду клиентов в Telegram, ВКонтакте и MAX одновременно. Copy-Bot сократил время на контент втрое.»</div>
+        <div class="tc-author">
+          <div class="tc-av" style="background:linear-gradient(135deg,#4facfe,#00f2fe)">ДЛ</div>
+          <div>
+            <div class="tc-name">Дмитрий Л.</div>
+            <div class="tc-meta"><span class="tc-badge smm">SMM</span>6 аккаунтов · 3 платформы</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Marquees -->
+    <div class="mq-wrap">
+      <div class="mq-track mq-fwd">
+        <div class="mq-item"><span class="mq-dot" style="background:#229ED9"></span>Telegram · Финансы</div>
+        <div class="mq-item"><span class="mq-dot" style="background:#0077FF"></span>ВКонтакте · Лайфстайл</div>
+        <div class="mq-item"><span class="mq-dot" style="background:#FF6B35"></span>MAX · Образование</div>
+        <div class="mq-item"><span class="mq-dot" style="background:#229ED9"></span>Telegram · Бизнес</div>
+        <div class="mq-item"><span class="mq-dot" style="background:#0077FF"></span>ВКонтакте · Технологии</div>
+        <div class="mq-item"><span class="mq-dot" style="background:#FF6B35"></span>MAX · Здоровье</div>
+        <div class="mq-item"><span class="mq-dot" style="background:#229ED9"></span>Telegram · Психология</div>
+        <div class="mq-item"><span class="mq-dot" style="background:#0077FF"></span>ВКонтакте · Маркетинг</div>
+        <div class="mq-item"><span class="mq-dot" style="background:#FF6B35"></span>MAX · Юмор</div>
+        <!-- duplicate -->
+        <div class="mq-item"><span class="mq-dot" style="background:#229ED9"></span>Telegram · Финансы</div>
+        <div class="mq-item"><span class="mq-dot" style="background:#0077FF"></span>ВКонтакте · Лайфстайл</div>
+        <div class="mq-item"><span class="mq-dot" style="background:#FF6B35"></span>MAX · Образование</div>
+        <div class="mq-item"><span class="mq-dot" style="background:#229ED9"></span>Telegram · Бизнес</div>
+        <div class="mq-item"><span class="mq-dot" style="background:#0077FF"></span>ВКонтакте · Технологии</div>
+        <div class="mq-item"><span class="mq-dot" style="background:#FF6B35"></span>MAX · Здоровье</div>
+        <div class="mq-item"><span class="mq-dot" style="background:#229ED9"></span>Telegram · Психология</div>
+        <div class="mq-item"><span class="mq-dot" style="background:#0077FF"></span>ВКонтакте · Маркетинг</div>
+        <div class="mq-item"><span class="mq-dot" style="background:#FF6B35"></span>MAX · Юмор</div>
+      </div>
+    </div>
+    <div class="mq-wrap" style="margin-top:8px;">
+      <div class="mq-track mq-rev">
+        <div class="mq-item">«Пост за 3 минуты»</div>
+        <div class="mq-item">«Не надо адаптировать вручную»</div>
+        <div class="mq-item">«Веду 3 платформы одновременно»</div>
+        <div class="mq-item">«Звучит как я, не как робот»</div>
+        <div class="mq-item">«Контент-план за 30 минут»</div>
+        <div class="mq-item">«Отменила копирайтера»</div>
+        <div class="mq-item">«Пост за 3 минуты»</div>
+        <div class="mq-item">«Не надо адаптировать вручную»</div>
+        <div class="mq-item">«Веду 3 платформы одновременно»</div>
+        <div class="mq-item">«Звучит как я, не как робот»</div>
+        <div class="mq-item">«Контент-план за 30 минут»</div>
+        <div class="mq-item">«Отменила копирайтера»</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===========================
+     DEMO
+=========================== -->
+<section id="demo">
+  <div class="container">
+    <div class="section-header reveal">
+      <div class="label">Посмотри сам</div>
+      <h2>Один запрос —<br>три платформы.</h2>
+      <p>Одна тема — разные форматы под каждую площадку. Переключи и сравни.</p>
+    </div>
+
+    <div class="demo-tabs-row reveal">
+      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+        <span class="tab-lbl">Ниша:</span>
+        <div class="tab-group" id="niche-tabs">
+          <button class="tab-btn active" data-niche="finance">💰 Финансы</button>
+          <button class="tab-btn" data-niche="lifestyle">🌿 Лайфстайл</button>
+          <button class="tab-btn" data-niche="marketing">📣 Маркетинг</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+        <span class="tab-lbl">Платформа:</span>
+        <div class="tab-group" id="platform-tabs">
+          <button class="tab-btn active" data-platform="tg">✈ Telegram</button>
+          <button class="tab-btn" data-platform="vk">VK ВКонтакте</button>
+          <button class="tab-btn" data-platform="max">MAX</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-layout reveal">
+      <div class="demo-in">
+        <div class="demo-label">▸ ЗАПРОС</div>
+        <div class="demo-row"><span class="demo-k">Тема:</span><span class="demo-v" id="d-topic">—</span></div>
+        <div class="demo-row"><span class="demo-k">Формат:</span><span class="demo-v" id="d-format">—</span></div>
+        <div class="demo-row"><span class="demo-k">Платформа:</span><span class="demo-v" id="d-platform">—</span></div>
+        <div class="demo-row"><span class="demo-k">Ниша:</span><span class="demo-v" id="d-niche">—</span></div>
+      </div>
+      <div class="demo-out">
+        <div class="demo-label">◆ ГОТОВЫЙ ПОСТ</div>
+        <div class="demo-result" id="d-result">—</div>
+        <div class="demo-timing" id="d-time">Генерация: 28 сек</div>
+      </div>
+    </div>
+
+    <div class="demo-cta reveal">
+      <a href="https://t.me/Copy_plan_bot" class="btn btn-primary">Попробовать на своей теме →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===========================
+     PRICING
+=========================== -->
+<section id="pricing">
+  <div class="container">
+    <div class="section-header reveal">
+      <div class="label">Тарифы</div>
+      <h2>Расти без выгорания.</h2>
+      <p>Выбери план под свой ритм. Отмени когда угодно — одной кнопкой в боте.</p>
+    </div>
+
+    <div class="pricing-note reveal">
+      💳 Оплата картой через ЮКасса &nbsp;·&nbsp; Безопасно и быстро &nbsp;·&nbsp; Отмена одной кнопкой в боте
+    </div>
+    <div class="pricing-proof reveal">
+      <span class="stars-row">★★★★★</span>
+      <span>4.8 · Используют 1 200+ авторов · Отменить можно в любой момент</span>
+    </div>
+
+    <div class="pricing-grid">
+      <!-- Free -->
+      <div class="pc reveal d1">
+        <div class="plan-name">Free 🆓</div>
+        <div class="plan-desc">Попробовать без риска</div>
+        <div class="plan-price free-price">Бесплатно</div>
+        <div class="plan-stars">навсегда · без карты</div>
+        <div class="plan-divider"></div>
+        <ul class="plan-feats">
+          <li>5 постов в месяц</li>
+          <li>1 изображение в месяц</li>
+          <li>Загрузка стиля канала</li>
+          <li>Все форматы контента</li>
+          <li>Telegram, ВКонтакте, MAX</li>
+          <li class="dim">Тренды и темы</li>
+          <li class="dim">Расписание публикаций</li>
+          <li class="dim">Автопубликация</li>
+        </ul>
+        <a href="https://t.me/Copy_plan_bot" class="btn btn-violet" style="width:100%;justify-content:center;">Начать бесплатно</a>
+      </div>
+
+      <!-- Базовый -->
+      <div class="pc reveal d2">
+        <div class="plan-name">Базовый</div>
+        <div class="plan-desc">Для активных авторов</div>
+        <div class="plan-price">390₽<span class="unit">/мес</span></div>
+        <div class="plan-stars">или 3 890₽/год — 2 месяца бесплатно</div>
+        <div class="plan-divider"></div>
+        <ul class="plan-feats">
+          <li>30 постов в месяц</li>
+          <li>5 изображений в месяц</li>
+          <li>Загрузка стиля канала</li>
+          <li>Все форматы контента</li>
+          <li>Telegram, ВКонтакте, MAX</li>
+          <li>Тренды и темы</li>
+          <li class="dim">Расписание публикаций</li>
+          <li class="dim">Автопубликация</li>
+        </ul>
+        <a href="https://t.me/Copy_plan_bot" class="btn btn-violet" style="width:100%;justify-content:center;">Выбрать Базовый</a>
+      </div>
+
+      <!-- Стандарт (featured) -->
+      <div class="pc feat reveal d3">
+        <div class="pop-badge">★ Популярный выбор</div>
+        <div class="plan-name" style="color:#c084fc;">Стандарт</div>
+        <div class="plan-desc">Для регулярного контента</div>
+        <div class="plan-price" style="background:linear-gradient(135deg,#c084fc,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">690₽<span class="unit" style="-webkit-text-fill-color:var(--text-m)">/мес</span></div>
+        <div class="plan-stars">или 6 890₽/год — 2 месяца бесплатно</div>
+        <div class="plan-divider" style="background:rgba(124,58,237,.3)"></div>
+        <ul class="plan-feats">
+          <li>80 постов в месяц</li>
+          <li>15 изображений в месяц</li>
+          <li>Загрузка стиля (3 профиля)</li>
+          <li>Все форматы контента</li>
+          <li>Telegram, ВКонтакте, MAX</li>
+          <li>Тренды и темы</li>
+          <li>Расписание публикаций</li>
+          <li>Автопубликация в канал</li>
+        </ul>
+        <a href="https://t.me/Copy_plan_bot" class="btn btn-primary" style="width:100%;justify-content:center;">Выбрать Стандарт</a>
+      </div>
+
+      <!-- Про -->
+      <div class="pc reveal d4">
+        <div class="plan-name">Про</div>
+        <div class="plan-desc">Для SMM и агентств</div>
+        <div class="plan-price">1 290₽<span class="unit">/мес</span></div>
+        <div class="plan-stars">или 12 890₽/год — 2 месяца бесплатно</div>
+        <div class="plan-divider"></div>
+        <ul class="plan-feats">
+          <li>200 постов в месяц</li>
+          <li>50 изображений в месяц</li>
+          <li>Загрузка стиля (5 профилей)</li>
+          <li>Все форматы контента</li>
+          <li>Telegram, ВКонтакте, MAX</li>
+          <li>Тренды и темы</li>
+          <li>Расписание публикаций</li>
+          <li>Автопубликация в канал</li>
+        </ul>
+        <a href="https://t.me/Copy_plan_bot" class="btn btn-violet" style="width:100%;justify-content:center;">Выбрать Про</a>
+      </div>
+    </div>
+
+    <div class="stars-box reveal">
+      <div class="stars-box-ico">💳</div>
+      <div>
+        <div class="stars-box-title">Как оплатить</div>
+        <div class="stars-box-txt">Оплата картой через ЮКасса — прямо в боте. Visa, Mastercard, Мир. Подписка автоматически продлевается, отменить можно в любой момент одной кнопкой в настройках бота.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===========================
+     REFERRAL
+=========================== -->
+<section id="referral">
+  <div class="container">
+    <div class="section-header center reveal">
+      <div class="label">Реферальная программа</div>
+      <h2>Приглашай друзей — получай дни бесплатно</h2>
+      <p style="max-width:540px;margin:0 auto;">Поделись личной ссылкой. Каждый друг, который зарегистрируется, приносит тебе бонусные дни к подписке — без ограничений.</p>
+    </div>
+
+    <div class="ref-grid reveal">
+      <div class="ref-card">
+        <div class="ref-ico">👤</div>
+        <div class="ref-lbl">Ты получаешь</div>
+        <div class="ref-val">+5 дн.</div>
+        <div class="ref-desc">за каждого друга, который зарегистрировался по твоей ссылке</div>
+      </div>
+      <div class="ref-card">
+        <div class="ref-ico">🎁</div>
+        <div class="ref-lbl">Друг получает</div>
+        <div class="ref-val">+3 дн.</div>
+        <div class="ref-desc">дополнительно к пробному периоду — сразу при регистрации</div>
+      </div>
+      <div class="ref-card">
+        <div class="ref-ico">🏆</div>
+        <div class="ref-lbl">Рубежи</div>
+        <div class="ref-milestones">
+          <div class="ref-milestone">
+            <span class="ref-m-val">3 реферала</span>
+            <span class="ref-m-bonus">+14 дней</span>
+          </div>
+          <div class="ref-milestone">
+            <span class="ref-m-val">5 рефералов</span>
+            <span class="ref-m-bonus">+30 дней</span>
+          </div>
+        </div>
+        <div class="ref-desc">бонус начисляется мгновенно при достижении рубежа</div>
+      </div>
+    </div>
+
+    <div class="reveal" style="text-align:center;margin-top:2.5rem;">
+      <p class="ref-cta-note">Получи свою ссылку прямо в боте — нажми <code>/referral</code></p>
+      <a href="https://t.me/Copy_plan_bot" class="btn btn-primary">Открыть бота и получить ссылку →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===========================
+     FAQ
+=========================== -->
+<section id="faq">
+  <div class="container">
+    <div class="section-header center reveal">
+      <div class="label">Частые вопросы</div>
+      <h2>Ответы на главные вопросы</h2>
+    </div>
+    <div class="faq-list reveal">
+
+      <div class="faq-item open">
+        <div class="faq-q" onclick="faqToggle(this)">Какие платформы поддерживает бот?<span class="faq-chevron">▾</span></div>
+        <div class="faq-a"><div class="faq-a-inner">Telegram, ВКонтакте и MAX. Бот форматирует контент под правила каждой платформы: для Telegram — короткие абзацы и структура; для ВКонтакте — хэштеги и отступы; для MAX — лаконичный заголовочный формат. Один запрос → три адаптированных варианта.</div></div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="faqToggle(this)">Бот получает доступ к моим каналам и страницам?<span class="faq-chevron">▾</span></div>
+        <div class="faq-a"><div class="faq-a-inner">Нет. Copy-Bot только генерирует тексты. Вы сами публикуете — бот ничего не отправляет от вашего имени ни в Telegram, ни в ВКонтакте, ни в MAX. Доступ к аккаунтам не требуется.</div></div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="faqToggle(this)">Тексты не будут похожи на ChatGPT?<span class="faq-chevron">▾</span></div>
+        <div class="faq-a"><div class="faq-a-inner">Бот использует специализированные промпты под каждую платформу — с учётом формата, ниши и ритма публикаций. Это не «дай мне статью» — это движок, настроенный под конкретный канал. Никакого «в современном мире не секрет, что».</div></div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="faqToggle(this)">Как отменить подписку?<span class="faq-chevron">▾</span></div>
+        <div class="faq-a"><div class="faq-a-inner">Через настройки бота одной кнопкой. Никаких писем, звонков или форм. Доступ остаётся до конца оплаченного периода.</div></div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="faqToggle(this)">Подойдёт ли для моей ниши?<span class="faq-chevron">▾</span></div>
+        <div class="faq-a"><div class="faq-a-inner">Copy-Bot работает для любых тематических каналов и сообществ: финансы, лайфстайл, образование, бизнес, юмор, технологии, здоровье, психология. Если у вас узкая ниша — напишите нам.</div></div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="faqToggle(this)">Мои данные в безопасности?<span class="faq-chevron">▾</span></div>
+        <div class="faq-a"><div class="faq-a-inner">Мы не храним содержимое ваших постов и не передаём данные третьим лицам. Бот работает только в рамках активного диалога.</div></div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="faqToggle(this)">Как оплатить подписку?<span class="faq-chevron">▾</span></div>
+        <div class="faq-a"><div class="faq-a-inner">Оплата картой (Visa, Mastercard, Мир) через ЮКасса — прямо внутри бота. Никаких внешних сайтов. Подписка продлевается автоматически, отменить можно в любой момент через настройки бота.</div></div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="faqToggle(this)">Как работает реферальная программа?<span class="faq-chevron">▾</span></div>
+        <div class="faq-a"><div class="faq-a-inner">Получи личную ссылку командой /referral в боте. Каждый друг, который зарегистрируется по ней, приносит тебе +5 дней к подписке — а ему даётся +3 дня дополнительно к пробному периоду. При достижении рубежей начисляются дополнительные бонусы: 3 реферала → +14 дней, 5 рефералов → +30 дней.</div></div>
+      </div>
+
+    </div>
+    <div style="text-align:center;margin-top:1.5rem;" class="reveal">
+      <p style="font-size:.86rem;margin-bottom:.7rem;">Остались вопросы?</p>
+      <a href="https://t.me/Copy_plan_bot" class="btn btn-violet" style="font-size:.84rem;padding:9px 20px;">Написать в поддержку →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===========================
+     FINAL CTA
+=========================== -->
+<section id="finalcta">
+  <div class="container">
+    <div class="fcta-inner reveal">
+      <div class="label">Начать бесплатно</div>
+      <h2 class="fcta-title">Один бот.<br>Telegram, ВКонтакте и MAX.<br>Начни прямо сейчас.</h2>
+      <p class="fcta-sub">Бесплатно. Без регистрации на сайте. Прямо в Telegram.</p>
+
+      <div class="fcta-platforms">
+        <div class="pill pill-tg" style="padding:8px 16px;font-size:.84rem;">✈ Telegram</div>
+        <div class="pill pill-vk" style="padding:8px 16px;font-size:.84rem;">VK ВКонтакте</div>
+        <div class="pill pill-mx" style="padding:8px 16px;font-size:.84rem;">MAX</div>
+      </div>
+
+      <a href="https://t.me/Copy_plan_bot" class="btn btn-primary btn-lg" style="font-size:1.08rem;padding:19px 42px;">
+        Открыть Copy-Bot в Telegram →
+      </a>
+
+      <div class="flow-row">
+        <div class="flow-step">📲 Открыть бота</div>
+        <span class="flow-arr">→</span>
+        <div class="flow-step">✍️ Написать тему</div>
+        <span class="flow-arr">→</span>
+        <div class="flow-step">🎛 Выбрать формат</div>
+        <span class="flow-arr">→</span>
+        <div class="flow-step">🚀 Получить пост</div>
+      </div>
+
+      <div class="fcta-micro">Нужен только Telegram · 3 поста бесплатно · Отмена в любой момент</div>
+
+      <div class="fcta-quote">«Первый пост был готов через 2 минуты. Опубликовала в TG и VK сразу.» — Марина К.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===========================
+     FOOTER
+=========================== -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <a href="#" class="nav-logo" style="font-size:.95rem;">
+        <div class="nav-logo-icon" style="width:26px;height:26px;font-size:13px;">🤖</div>
+        Copy-Bot
+      </a>
+      <div class="footer-links">
+        <a href="#howitworks">Как работает</a>
+        <a href="#features">Возможности</a>
+        <a href="#audience">Для кого</a>
+        <a href="#pricing">Цены</a>
+        <a href="#referral">Рефералы</a>
+        <a href="#faq">FAQ</a>
+        <a href="https://t.me/Copy_plan_bot">Поддержка</a>
+        <a href="#">Политика конфиденциальности</a>
+      </div>
+      <div class="footer-copy">© 2026 Copy-Bot</div>
+    </div>
+  </div>
+</footer>
+
+<!-- ===========================
+     JAVASCRIPT
+=========================== -->
+<script>
+/* ---- SCROLL PROGRESS ---- */
+const scrollBar = document.getElementById('scroll-progress');
+window.addEventListener('scroll', () => {
+  const scrolled = window.scrollY;
+  const total = document.documentElement.scrollHeight - window.innerHeight;
+  scrollBar.style.width = (total > 0 ? (scrolled / total * 100) : 0) + '%';
+}, { passive: true });
+
+/* ---- NAV SCROLL ---- */
+const nav = document.getElementById('nav');
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('scrolled', window.scrollY > 50);
+}, { passive: true });
+
+/* ---- MOBILE MENU ---- */
+const mob = document.getElementById('mob-menu');
+document.getElementById('ham').addEventListener('click', () => {
+  mob.style.display = mob.style.display === 'none' || !mob.style.display ? 'block' : 'none';
+});
+mob.querySelectorAll('a').forEach(a => a.addEventListener('click', () => { mob.style.display = 'none'; }));
+
+/* ---- SCROLL REVEAL ---- */
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('vis'); io.unobserve(e.target); } });
+}, { threshold: 0.10, rootMargin: '0px 0px -40px 0px' });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+/* ---- SMOOTH SCROLL ---- */
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const id = a.getAttribute('href');
+    if (id === '#') return;
+    const t = document.querySelector(id);
+    if (t) { e.preventDefault(); t.scrollIntoView({ behavior:'smooth', block:'start' }); }
+  });
+});
+
+/* ---- PHONE CHAT ANIMATION ---- */
+const chat = document.getElementById('tg-chat');
+const script = [
+  { type:'user', text:'пост про прокрастинацию, с юмором', delay:400 },
+  { type:'typing', delay:900 },
+  { type:'bot', text:'Прокрастинация — это не лень.\n\nЭто ваш мозг, который так старательно избегает дискомфорта, что придумывает 47 причин сначала проверить TikTok.\n\nХорошая новость: это лечится 👇', delay:1600, btns:true },
+];
+
+function runChat() {
+  chat.innerHTML = '';
+  let t = 0;
+  script.forEach(m => {
+    t += m.delay;
+    if (m.type === 'typing') {
+      setTimeout(() => {
+        const el = document.createElement('div');
+        el.className = 'typing'; el.id = 'typing-ind';
+        el.innerHTML = '<span></span><span></span><span></span>';
+        chat.appendChild(el); chat.scrollTop = 9999;
+      }, t);
+    } else if (m.type === 'user') {
+      setTimeout(() => {
+        const el = document.createElement('div');
+        el.className = 'msg msg-u msg-appear'; el.textContent = m.text;
+        chat.appendChild(el); chat.scrollTop = 9999;
+      }, t);
+    } else {
+      setTimeout(() => {
+        document.getElementById('typing-ind')?.remove();
+        const el = document.createElement('div');
+        el.className = 'msg msg-b msg-appear';
+        el.innerHTML = m.text.replace(/\n/g, '<br>');
+        if (m.btns) {
+          el.innerHTML += '<div class="platform-btns-row"><button class="pbtn pbtn-tg">✈ Telegram</button><button class="pbtn pbtn-vk">VK ВКонтакте</button><button class="pbtn pbtn-mx">MAX</button></div>';
+        }
+        chat.appendChild(el); chat.scrollTop = 9999;
+      }, t);
+    }
+  });
+  setTimeout(runChat, t + 3200);
+}
+runChat();
+
+/* ---- DEMO SECTION ---- */
+const demos = {
+  finance: {
+    topic: 'инфляция и накопления', format: 'с юмором', niche: 'личные финансы',
+    tg: `Инфляция убивает накопления тихо и незаметно.
+
+Вы кладёте деньги на карту — и думаете, что они в безопасности.
+На самом деле каждый год без инвестиций = -8% к покупательной способности.
+
+Что с этим делать 👇
+
+1. Вклад с капитализацией процентов
+2. Облигации федерального займа
+3. Диверсифицированный портфель`,
+    vk: `Почему хранить деньги на карте — плохая идея?
+
+Многие думают, что деньги на счёте в безопасности. Но инфляция молча «съедает» до 8% в год.
+
+Инструменты защиты:
+▶ Вклад с капитализацией
+▶ ОФЗ-облигации
+▶ Дивидендные акции
+
+А какой инструмент используете вы?
+
+#финансы #инвестиции #деньги #инфляция`,
+    max: `Ваши деньги на карте теряют 8% в год.
+
+Вот 3 инструмента, которые это исправят 👇
+
+1. Вклад с капитализацией — минимум риска, выше ставки
+2. ОФЗ-облигации — государство вернёт с процентами
+3. Дивидендные акции — деньги работают, пока вы спите
+
+Начать можно с 1 000 ₽. Главное — начать.`
+  },
+  lifestyle: {
+    topic: 'утренняя рутина', format: 'экспертный пост', niche: 'лайфстайл и продуктивность',
+    tg: `Утренняя рутина — не про вставать в 5 утра.
+
+Это про то, чтобы первые 30 минут дня принадлежали тебе, а не уведомлениям.
+
+Три вещи, которые реально работают:
+
+✦ Не трогать телефон первые 20 минут
+✦ Стакан воды до кофе
+✦ Одна задача на день — записанная от руки`,
+    vk: `Утренняя рутина — это не про ранние подъёмы. Это про осознанное начало дня.
+
+Первые 30 минут после пробуждения определяют продуктивность всего дня.
+
+Что реально работает:
+✔ Отложить телефон на 20 минут
+✔ Стакан воды перед кофе
+✔ Записать одну главную задачу
+
+А какая утренняя привычка изменила ваш день?
+
+#лайфстайл #продуктивность #утро #саморазвитие`,
+    max: `Утро решает всё.
+
+30 минут без телефона = лучший день.
+
+Три привычки, которые реально меняют жизнь 👇
+
+1. Не трогать телефон первые 20 минут
+2. Стакан воды до кофе
+3. Одна задача на день — записанная от руки
+
+Начни с одной. Через неделю добавь вторую.`
+  },
+  marketing: {
+    topic: 'почему реклама не работает', format: 'провокация / мнение', niche: 'маркетинг и SMM',
+    tg: `Горячий take: большинство рекламы сливает бюджет.
+
+Не потому что канал плохой.
+А потому что оффер никакой.
+
+«Лучший курс», «топовый эксперт», «результат 100%» — это уже не работает.
+
+Что работает? Конкретика. Боль. Цифра.
+
+«Научу писать посты за 10 минут» > «Курс по контент-маркетингу»`,
+    vk: `Почему 80% рекламы в соцсетях не работает?
+
+Не из-за площадки. Не из-за аудитории. Из-за оффера.
+
+«Лучший курс» — не оффер.
+«Научу за 10 минут писать посты, которые продают» — оффер.
+
+Разница:
+❌ Абстрактное обещание
+✅ Конкретный результат + время + механика
+
+Проверьте свой последний рекламный текст. Там есть конкретика?
+
+#маркетинг #реклама #копирайтинг #smm`,
+    max: `80% рекламы провалится.
+
+Причина: размытый оффер.
+
+«Лучший курс» vs «Результат за 10 минут» 👇`
+  }
+};
+
+const pNames = { tg:'Telegram', vk:'ВКонтакте', max:'MAX' };
+const pTimes = { tg:'28 сек', vk:'33 сек', max:'22 сек' };
+let cNiche = 'finance', cPlatform = 'tg';
+
+function updateDemo() {
+  const d = demos[cNiche];
+  document.getElementById('d-topic').textContent = d.topic;
+  document.getElementById('d-format').textContent = d.format;
+  document.getElementById('d-niche').textContent = d.niche;
+  document.getElementById('d-platform').textContent = pNames[cPlatform];
+  const res = document.getElementById('d-result');
+  res.style.opacity = '0';
+  setTimeout(() => {
+    res.textContent = d[cPlatform];
+    res.style.opacity = '1';
+    document.getElementById('d-time').textContent = 'Генерация: ' + pTimes[cPlatform];
+  }, 220);
+}
+
+document.getElementById('niche-tabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-niche]'); if (!b) return;
+  document.querySelectorAll('[data-niche]').forEach(x => x.classList.remove('active'));
+  b.classList.add('active'); cNiche = b.dataset.niche; updateDemo();
+});
+document.getElementById('platform-tabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-platform]'); if (!b) return;
+  document.querySelectorAll('[data-platform]').forEach(x => x.classList.remove('active'));
+  b.classList.add('active'); cPlatform = b.dataset.platform; updateDemo();
+});
+updateDemo();
+
+/* ---- FAQ ---- */
+function faqToggle(el) {
+  const item = el.parentElement;
+  const isOpen = item.classList.contains('open');
+  document.querySelectorAll('.faq-item').forEach(i => {
+    i.classList.remove('open');
+    i.querySelector('.faq-a').style.maxHeight = '0';
+  });
+  if (!isOpen) {
+    item.classList.add('open');
+    const a = item.querySelector('.faq-a');
+    a.style.maxHeight = a.scrollHeight + 'px';
+  }
+}
+// open first on load
+const firstFaq = document.querySelector('.faq-item.open .faq-a');
+if (firstFaq) firstFaq.style.maxHeight = firstFaq.scrollHeight + 'px';
+
+/* ---- 3D TILT — pricing + bento cards ---- */
+function addTilt(sel, maxDeg, lift) {
+  document.querySelectorAll(sel).forEach(card => {
+    card.addEventListener('mousemove', e => {
+      const r = card.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width - .5;
+      const y = (e.clientY - r.top)  / r.height - .5;
+      const base = card.classList.contains('feat') ? -(lift) : 0;
+      card.style.transition = 'transform .08s linear';
+      card.style.transform = `perspective(800px) rotateY(${x*maxDeg}deg) rotateX(${y*-maxDeg}deg) translateY(${base}px)`;
+    });
+    card.addEventListener('mouseleave', () => {
+      const base = card.classList.contains('feat') ? -6 : 0;
+      card.style.transition = 'transform .4s cubic-bezier(.22,.68,0,1.2)';
+      card.style.transform = `translateY(${base}px)`;
+    });
+  });
+}
+addTilt('.pc', 7, 6);
+addTilt('.bc', 5, 0);
+addTilt('.pain-card', 4, 0);
+
+/* ---- PARALLAX HERO BLOBS ---- */
+const blobs = document.querySelectorAll('.blob');
+window.addEventListener('scroll', () => {
+  const y = window.scrollY;
+  if (blobs[0]) blobs[0].style.transform = `translate(0, ${y * 0.15}px) scale(1)`;
+  if (blobs[1]) blobs[1].style.transform = `translate(0, ${y * 0.08}px) scale(1)`;
+  if (blobs[2]) blobs[2].style.transform = `translate(0, ${y * 0.12}px) scale(1)`;
+}, { passive: true });
+
+/* ---- STAT COUNTERS ---- */
+function animateCount(el) {
+  const target = parseFloat(el.dataset.target);
+  const suffix = el.dataset.suffix || '';
+  const isFloat = String(target).includes('.');
+  const duration = 1600;
+  const start = performance.now();
+  function tick(now) {
+    const p = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    const val = target * ease;
+    el.textContent = (isFloat ? val.toFixed(1) : Math.round(val).toLocaleString('ru')) + suffix;
+    if (p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+const statObs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      animateCount(e.target);
+      statObs.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.5 });
+document.querySelectorAll('.stat-n[data-target]').forEach(el => statObs.observe(el));
+</script>
+</body>
+</html>
