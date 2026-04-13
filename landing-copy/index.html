@@ -1579,8 +1579,11 @@ section:not(#hero)::before {
 
     </div>
     <div style="text-align:center;margin-top:1.5rem;" class="reveal">
-      <p style="font-size:.86rem;margin-bottom:.7rem;">Остались вопросы?</p>
-      <a href="mailto:content.bot.help@yandex.ru" class="btn btn-violet" style="font-size:.84rem;padding:9px 20px;">Написать в поддержку →</a>
+      <p style="font-size:.86rem;margin-bottom:.7rem;">Остались вопросы? Пишите на почту:</p>
+      <div style="display:inline-flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border-s);border-radius:var(--r-sm);padding:10px 18px;">
+        <span style="font-size:.88rem;color:var(--text);font-weight:600;">content.bot.help@yandex.ru</span>
+        <button onclick="navigator.clipboard.writeText('content.bot.help@yandex.ru').then(()=>{this.textContent='✓';setTimeout(()=>{this.textContent='Скопировать'},1500)})" style="font-size:.75rem;padding:4px 10px;border-radius:6px;border:1px solid var(--border-s);background:var(--surface-2);color:var(--text-m);cursor:pointer;">Скопировать</button>
+      </div>
     </div>
   </div>
 </section>
@@ -1639,7 +1642,7 @@ section:not(#hero)::before {
         <a href="#pricing">Цены</a>
         <a href="#referral">Рефералы</a>
         <a href="#faq">FAQ</a>
-        <a href="mailto:content.bot.help@yandex.ru">Поддержка</a>
+        <a href="https://t.me/Copy_plan_bot">Поддержка</a>
         <a href="#">Политика конфиденциальности</a>
       </div>
       <div class="footer-copy">© 2026 Copy-Bot</div>
