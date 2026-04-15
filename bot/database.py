@@ -299,7 +299,10 @@ async def get_subscription(user_id: int) -> Optional[dict]:
         )
     if not row:
         return None
-    return dict(row)
+    result = dict(row)
+    if result.get("expires_at") is not None:
+        result["expires_at"] = _as_utc(result["expires_at"])
+    return result
 
 
 async def get_active_plan(user_id: int) -> str:
