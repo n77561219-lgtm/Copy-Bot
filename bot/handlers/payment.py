@@ -285,12 +285,12 @@ async def successful_payment(message: Message) -> None:
                                  payment_id=payment.telegram_payment_charge_id)
     await set_preference(user_id, "last_period", period)
     await log_usage(user_id, "payment")
+    plan = PLANS[plan_id]
     amount_rub = plan["price_rub_year"] if months == 12 else plan["price_rub"]
     await log_payment(user_id, plan_id, period, amount_rub)
 
     sub = await get_subscription(user_id)
     expires = sub["expires_at"].strftime("%d.%m.%Y") if sub else "—"
-    plan = PLANS[plan_id]
     period_label = "12 месяцев" if months == 12 else "1 месяц"
 
     auto_renew = await get_preference(user_id, "auto_renew") == "1"
