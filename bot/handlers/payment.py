@@ -11,10 +11,34 @@ from aiogram.types import (
 from aiogram.filters import Command
 
 from bot.database import activate_subscription, get_subscription, log_usage, set_preference, get_preference, log_payment
-from bot.keyboards import main_menu, plans_kb, checkout_kb, cancel_confirm_kb, refund_kb
+from bot.keyboards import main_menu, plans_kb, checkout_kb, cancel_confirm_kb, refund_kb, MENU_PLANS
 from bot.plans import PLANS, PAID_PLANS
 
 router = Router()
+
+
+# ── 💎 Тарифы (reply-keyboard button) ────────────────────────────────────────
+
+@router.message(F.text == MENU_PLANS)
+async def menu_plans(message: Message) -> None:
+    """Show plan comparison and subscribe button."""
+    from datetime import datetime, timezone
+    user_id = message.from_user.id
+    sub = await get_subscription(user_id)
+    current_plan = sub["plan"] if sub and sub["expires_at"] > datetime.now(timezone.utc) else ""
+
+    lines = ["💎 *Тарифы Контент-мейкера*\n"]
+    for plan_id in ["free"] + PAID_PLANS:
+        p = PLANS[plan_id]
+        price = "бесплатно" if p["price_rub"] == 0 else f"{p['price_rub']}₽/мес · {p['price_rub_year']}₽/год"
+        mark = " ✅ *текущий*" if plan_id == current_plan else ""
+        lines.append(f"{p['emoji']} *{p['name']}*{mark} — {price}\n{p['description']}\n")
+
+    await message.answer(
+        "\n".join(lines),
+        parse_mode="Markdown",
+        reply_markup=plans_kb(current_plan=current_plan, period="month"),
+    )
 
 
 # ── /refund ───────────────────────────────────────────────────────────────────

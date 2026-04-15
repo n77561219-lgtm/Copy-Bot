@@ -15,6 +15,7 @@ MENU_SETTINGS = "⚙️ Настройки"
 MENU_PROFILE  = "👤 Профиль"
 MENU_REFERRAL = "👥 Рефералы"
 MENU_SCHEDULE = "⏰ Расписание"
+MENU_PLANS    = "💎 Тарифы"
 MENU_HELP     = "❓ Помощь"
 
 
@@ -25,7 +26,7 @@ def main_menu() -> ReplyKeyboardMarkup:
             [KeyboardButton(text=MENU_TRENDS),   KeyboardButton(text=MENU_SEARCH)],
             [KeyboardButton(text=MENU_STYLE),    KeyboardButton(text=MENU_SETTINGS)],
             [KeyboardButton(text=MENU_PROFILE),  KeyboardButton(text=MENU_REFERRAL)],
-            [KeyboardButton(text=MENU_SCHEDULE)],
+            [KeyboardButton(text=MENU_PLANS),    KeyboardButton(text=MENU_SCHEDULE)],
         ],
         resize_keyboard=True,
         is_persistent=True,
