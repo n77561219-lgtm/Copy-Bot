@@ -847,3 +847,85 @@ async def get_token_stats() -> dict:
         "in_all": in_all, "out_all": out_all,  "cost_all": cost_all,
         "agents": agents,
     }
+
+
+# ── Refund calculation (Appendix 1) ──────────────────────────────────────────
+
+# Prices per action in rubles (Appendix 1 of Politika_vozvrata)
+_REFUND_RATES: dict[str, int] = {
+    "post_generated": 8,
+    "plan_generated":  25,
+    "style_analyzed":  20,
+    "post_edited":     6,
+    "image_generated": 0,   # not in Appendix 1 — no charge for refund
+}
+
+
+async def get_user_refund_summary(user_id: int, since: datetime | None = None) -> dict:
+    """Calculate how much the user has consumed since their last payment.
+
+    Returns:
+        counts   — dict action→count
+        used_rub — total cost of consumed generations (₽)
+        sub      — subscription row or None
+        payment  — last payment row or None
+        refund   — calculated refund amount (₽, floor 0)
+    """
+    async with get_pool().acquire() as conn:
+        # Last payment
+        payment = await conn.fetchrow(
+            "SELECT * FROM payments WHERE user_id=$1 ORDER BY created_at DESC LIMIT 1",
+            user_id,
+        )
+        since_dt = since or (payment["created_at"] if payment else None)
+
+        # Subscription
+        sub = await conn.fetchrow(
+            "SELECT * FROM subscriptions WHERE user_id=$1", user_id
+        )
+
+        # Usage counts since payment date
+        if since_dt:
+            rows = await conn.fetch(
+                """
+                SELECT action, COUNT(*) AS cnt
+                FROM usage_log
+                WHERE user_id=$1 AND created_at >= $2
+                GROUP BY action
+                """,
+                user_id, since_dt,
+            )
+        else:
+            rows = await conn.fetch(
+                "SELECT action, COUNT(*) AS cnt FROM usage_log WHERE user_id=$1 GROUP BY action",
+                user_id,
+            )
+
+    counts: dict[str, int] = {r["action"]: int(r["cnt"]) for r in rows}
+
+    used_rub = sum(
+        counts.get(action, 0) * price
+        for action, price in _REFUND_RATES.items()
+    )
+
+    # Refund = (price × remaining_days / total_days) − used_rub
+    refund_amount = 0.0
+    if sub and payment:
+        from bot.plans import PLANS
+        plan_data = PLANS.get(sub["plan"], {})
+        paid_at  = _as_utc(payment["created_at"])
+        expires  = _as_utc(sub["expires_at"])
+        now      = datetime.now(timezone.utc)
+        total_days     = max((expires - paid_at).days, 1)
+        remaining_days = max((expires - now).days, 0)
+        price_rub      = int(payment["amount_rub"])
+        prorated       = price_rub * remaining_days / total_days
+        refund_amount  = max(round(prorated - used_rub, 2), 0.0)
+
+    return {
+        "counts":      counts,
+        "used_rub":    used_rub,
+        "sub":         dict(sub) if sub else None,
+        "payment":     dict(payment) if payment else None,
+        "refund":      refund_amount,
+    }

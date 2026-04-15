@@ -297,6 +297,7 @@ async def handle_text(message: Message, state: FSMContext) -> None:
             mode="custom",
             custom_instruction=message.text,
         )
+        await log_usage(user_id, "post_edited")
         await status.delete()
         await message.answer(edited, reply_markup=edit_actions_keyboard())
         await state.update_data(current_post=edited)
@@ -369,6 +370,8 @@ async def _create_plan(message: Message, state: FSMContext, days: int, user_id: 
     if not plan:
         await status.edit_text("❌ Не удалось создать план. Попробуй ещё раз.")
         return
+
+    await log_usage(user_id, "plan_generated")
 
     lines = [f"📅 Контент-план на {days} дней:\n"]
     for item in plan:
@@ -501,6 +504,7 @@ async def cb_edit_mode(callback: CallbackQuery, state: FSMContext) -> None:
         else:
             await status.edit_text(f"❌ Ошибка: {err[:200]}")
         return
+    await log_usage(user_id, "post_edited")
     await status.delete()
 
     await callback.message.answer(edited, reply_markup=edit_actions_keyboard())

@@ -6,7 +6,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 
 from bot.config import settings
-from bot.database import get_pool, get_admin_stats, get_token_stats
+from bot.database import get_pool, get_admin_stats, get_token_stats, get_user_refund_summary
 
 router = Router()
 
@@ -88,6 +88,72 @@ async def cmd_admin_tokens(message: Message) -> None:
         + ("\n".join(agent_lines) if agent_lines else "  нет данных")
     )
     await message.answer(text, parse_mode="Markdown")
+
+
+@router.message(Command("admin_refund"))
+async def cmd_admin_refund(message: Message) -> None:
+    """Calculate refund for a user: /admin_refund <user_id>"""
+    if not _is_admin(message.from_user.id):
+        return
+
+    parts = message.text.split()
+    if len(parts) < 2 or not parts[1].lstrip("-").isdigit():
+        await message.answer("Использование: /admin_refund <user_id>")
+        return
+
+    target_id = int(parts[1])
+    s = await get_user_refund_summary(target_id)
+
+    if not s["sub"]:
+        await message.answer(f"❌ Пользователь `{target_id}` не найден в базе.", parse_mode="Markdown")
+        return
+
+    sub     = s["sub"]
+    payment = s["payment"]
+    counts  = s["counts"]
+
+    plan_label  = sub["plan"].capitalize()
+    expires_str = _as_utc_str(sub["expires_at"])
+    paid_str    = _as_utc_str(payment["created_at"]) if payment else "—"
+    price_str   = f"{payment['amount_rub']} ₽" if payment else "—"
+
+    # Usage breakdown
+    action_labels = {
+        "post_generated": "Постов",
+        "plan_generated":  "Контент-планов",
+        "style_analyzed":  "Анализов стиля",
+        "post_edited":     "Правок",
+        "image_generated": "Изображений",
+    }
+    usage_lines = []
+    for action, label in action_labels.items():
+        cnt = counts.get(action, 0)
+        if cnt:
+            from bot.database import _REFUND_RATES
+            price = _REFUND_RATES.get(action, 0)
+            cost_str = f" × {price} ₽ = {cnt * price} ₽" if price else ""
+            usage_lines.append(f"  {label}: {cnt}{cost_str}")
+    if not usage_lines:
+        usage_lines = ["  нет использования"]
+
+    text = (
+        f"🧾 *Расчёт возврата — user `{target_id}`*\n\n"
+        f"Тариф: *{plan_label}*\n"
+        f"Оплата: {paid_str} — {price_str}\n"
+        f"Действует до: {expires_str}\n\n"
+        f"*Использование с момента оплаты:*\n"
+        + "\n".join(usage_lines) + "\n\n"
+        f"Использовано: *{s['used_rub']} ₽*\n\n"
+        f"💰 *К возврату: {s['refund']} ₽*"
+    )
+    await message.answer(text, parse_mode="Markdown")
+
+
+def _as_utc_str(dt) -> str:
+    from bot.database import _as_utc
+    if dt is None:
+        return "—"
+    return _as_utc(dt).strftime("%d.%m.%Y %H:%M")
 
 
 @router.message(Command("admin_users"))

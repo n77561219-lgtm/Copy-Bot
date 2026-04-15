@@ -7,7 +7,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, Document, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.config import settings
-from bot.database import save_style_examples, get_style_examples_count, get_preference, set_preference, get_active_plan
+from bot.database import save_style_examples, get_style_examples_count, get_preference, set_preference, get_active_plan, log_usage
 from bot.plans import profiles_limit, get_plan
 from bot.parsers import parse_file
 from bot.agents.style_analyst import run_style_analyst, run_style_analyst_from_doc, _is_tov_document
@@ -184,6 +184,8 @@ async def _process_upload(message: Message, state: FSMContext, doc, filename: st
             total = await get_style_examples_count(user_id)
             source_label = "посты канала"
             count_line = f"📝 Постов: {len(posts)} (всего в базе: {total})\n"
+
+        await log_usage(user_id, "style_analyzed")
 
         profile_path = style_profile_path(user_id, profile_name)
         async with aiofiles.open(profile_path, "w", encoding="utf-8") as f:
