@@ -83,6 +83,7 @@ async def _generate_post(
     previous_draft: str = "",
     feedback: str = "",
     user_id: int | None = None,
+    platform_override: str | None = None,
 ) -> None:
     if user_id is None:
         user_id = message.from_user.id
@@ -96,7 +97,7 @@ async def _generate_post(
     post_length  = await get_setting(user_id, "post_length")
     show_score   = await get_setting(user_id, "show_score")
     critic_iters = int(await get_setting(user_id, "critic_iters"))
-    platform     = await get_setting(user_id, "platform")
+    platform     = platform_override or await get_setting(user_id, "platform")
 
     status = await message.answer("🔍 Исследую тему...")
     try:
@@ -232,13 +233,24 @@ async def menu_help(message: Message) -> None:
 @router.message(S.waiting_post_topic)
 async def handle_post_topic(message: Message, state: FSMContext) -> None:
     topic = message.text.strip()
-    await state.update_data(current_topic=topic)
+    platform = await get_setting(message.from_user.id, "platform")
+    await state.update_data(current_topic=topic, current_platform=platform)
     await state.set_state(S.waiting_format_choice)
     await message.answer(
-        f"📌 Тема: *{topic}*\n\nВыбери формат поста:",
+        f"📌 Тема: *{topic}*\n\nВыбери платформу и формат поста:",
         parse_mode="Markdown",
-        reply_markup=format_choice_kb(),
+        reply_markup=format_choice_kb(platform=platform),
     )
+
+
+@router.callback_query(F.data.startswith("platform:select:"), S.waiting_format_choice)
+async def cb_platform_in_format(callback: CallbackQuery, state: FSMContext) -> None:
+    """Switch platform selection on the format choice screen without leaving the step."""
+    plat = callback.data.split("platform:select:")[1]
+    await state.update_data(current_platform=plat)
+    await callback.message.edit_reply_markup(reply_markup=format_choice_kb(platform=plat))
+    from bot.handlers.settings import _PLATFORM_LABELS
+    await callback.answer(_PLATFORM_LABELS.get(plat, plat))
 
 
 @router.callback_query(F.data.startswith("format:"), S.waiting_format_choice)
@@ -247,6 +259,7 @@ async def cb_format_choice(callback: CallbackQuery, state: FSMContext) -> None:
     post_type = _FORMAT_MAP.get(format_key, "мнение")
     data = await state.get_data()
     topic = data.get("current_topic", "")
+    platform = data.get("current_platform") or await get_setting(callback.from_user.id, "platform")
     if not topic:
         await callback.answer("❌ Тема потеряна, введи заново")
         await state.clear()
@@ -255,6 +268,7 @@ async def cb_format_choice(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
     await _generate_post(
         callback.message, state, topic=topic, post_type=post_type,
+        platform_override=platform,
         user_id=callback.from_user.id,
     )
 
@@ -295,12 +309,13 @@ async def handle_text(message: Message, state: FSMContext) -> None:
 
     if intent == "WRITE_POST":
         topic = dispatch["topic"] or message.text
-        await state.update_data(current_topic=topic)
+        platform = await get_setting(user_id, "platform")
+        await state.update_data(current_topic=topic, current_platform=platform)
         await state.set_state(S.waiting_format_choice)
         await message.answer(
-            f"📌 Тема: *{topic}*\n\nВыбери формат поста:",
+            f"📌 Тема: *{topic}*\n\nВыбери платформу и формат поста:",
             parse_mode="Markdown",
-            reply_markup=format_choice_kb(),
+            reply_markup=format_choice_kb(platform=platform),
         )
 
     elif intent == "EDIT_POST":

@@ -153,9 +153,29 @@ def next_topics_kb() -> InlineKeyboardMarkup:
     return b.as_markup()
 
 
-def format_choice_kb() -> InlineKeyboardMarkup:
-    """Format selection shown after user enters a post topic."""
+_PLATFORM_BTN_LABELS = {
+    "telegram": "✈️ Telegram",
+    "vk":       "🔵 ВКонтакте",
+    "max":      "💬 MAX",
+}
+
+
+def format_choice_kb(platform: str = "telegram") -> InlineKeyboardMarkup:
+    """Format selection shown after user enters a post topic.
+
+    Platform toggle row is shown at the top — active platform is marked with ✅.
+    """
     b = InlineKeyboardBuilder()
+
+    # Platform row (3 buttons, active one marked)
+    platform_btns = []
+    for plat, label in _PLATFORM_BTN_LABELS.items():
+        mark = " ✅" if plat == platform else ""
+        platform_btns.append(
+            InlineKeyboardButton(text=f"{label}{mark}", callback_data=f"platform:select:{plat}")
+        )
+    b.row(*platform_btns)
+
     b.row(
         InlineKeyboardButton(text="📚 Экспертный",  callback_data="format:expert"),
         InlineKeyboardButton(text="📖 Кейс",        callback_data="format:case"),
