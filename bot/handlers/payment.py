@@ -8,11 +8,104 @@ from aiogram.types import (
     SuccessfulPayment,
 )
 
+from aiogram.filters import Command
+
 from bot.database import activate_subscription, get_subscription, log_usage, set_preference, get_preference, log_payment
-from bot.keyboards import main_menu, plans_kb, checkout_kb
+from bot.keyboards import main_menu, plans_kb, checkout_kb, cancel_confirm_kb, refund_kb
 from bot.plans import PLANS, PAID_PLANS
 
 router = Router()
+
+
+# ── /refund ───────────────────────────────────────────────────────────────────
+
+@router.message(Command("refund"))
+async def cmd_refund(message: Message) -> None:
+    """Show refund instructions with support link and policy."""
+    await message.answer(
+        "💰 *Возврат средств*\n\n"
+        "Мы вернём деньги за неиспользованные дни подписки.\n\n"
+        "*Стандартные случаи* — решение за 5 рабочих дней\n"
+        "*Спорные ситуации* — до 10 рабочих дней\n"
+        "*Двойное списание* — до 3 рабочих дней\n\n"
+        "Напишите в поддержку и укажите:\n"
+        "• Telegram-профиль\n"
+        "• Дату и сумму платежа\n"
+        "• Причину возврата\n\n"
+        "Деньги возвращаются на ту же карту, с которой была оплата.",
+        parse_mode="Markdown",
+        reply_markup=refund_kb(),
+    )
+
+
+# ── /cancel ───────────────────────────────────────────────────────────────────
+
+@router.message(Command("cancel"))
+async def cmd_cancel(message: Message) -> None:
+    """Show subscription status with cancel/refund options."""
+    from datetime import datetime, timezone
+    user_id = message.from_user.id
+    sub = await get_subscription(user_id)
+
+    if not sub or sub["expires_at"] <= datetime.now(timezone.utc):
+        await message.answer(
+            "ℹ️ У тебя нет активной платной подписки.\n\n"
+            "Для возврата или других вопросов — напиши в поддержку.",
+            reply_markup=refund_kb(),
+        )
+        return
+
+    plan = PLANS.get(sub["plan"], PLANS["free"])
+    expires = sub["expires_at"].strftime("%d.%m.%Y")
+    auto_renew = await get_preference(user_id, "auto_renew") == "1"
+    renew_status = "🔄 включено" if auto_renew else "⏸ отключено"
+
+    await message.answer(
+        f"📋 *Твоя подписка*\n\n"
+        f"{plan['emoji']} Тариф: *{plan['name']}*\n"
+        f"📅 Действует до: *{expires}*\n"
+        f"Автопродление: {renew_status}\n\n"
+        f"После отмены автопродления доступ сохраняется до *{expires}*.",
+        parse_mode="Markdown",
+        reply_markup=cancel_confirm_kb(has_auto_renew=auto_renew),
+    )
+
+
+@router.callback_query(F.data == "cancel:disable_renew")
+async def cb_cancel_disable_renew(callback: CallbackQuery) -> None:
+    """Disable auto-renewal — access continues until expiry."""
+    await set_preference(callback.from_user.id, "auto_renew", "0")
+    sub = await get_subscription(callback.from_user.id)
+    expires = sub["expires_at"].strftime("%d.%m.%Y") if sub else "—"
+    await callback.message.edit_text(
+        f"✅ *Автопродление отключено*\n\n"
+        f"Доступ к сервису сохраняется до *{expires}*.\n"
+        f"Новых списаний не будет.\n\n"
+        f"Если хочешь вернуть деньги за неиспользованный период — напиши в поддержку.",
+        parse_mode="Markdown",
+        reply_markup=refund_kb(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "cancel:refund")
+async def cb_cancel_refund(callback: CallbackQuery) -> None:
+    """Redirect to refund flow."""
+    await callback.message.edit_text(
+        "💰 *Запрос возврата*\n\n"
+        "Напишите в поддержку — рассмотрим в течение 5 рабочих дней.\n\n"
+        "Укажите: Telegram-профиль, дату платежа, причину возврата.",
+        parse_mode="Markdown",
+        reply_markup=refund_kb(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "cancel:abort")
+async def cb_cancel_abort(callback: CallbackQuery) -> None:
+    """User changed mind — dismiss."""
+    await callback.message.delete()
+    await callback.answer("Отмена подписки не выполнена")
 
 
 # ── Plan selection screen ─────────────────────────────────────────────────────

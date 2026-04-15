@@ -196,6 +196,36 @@ def checkout_kb(plan_id: str, period: str, auto_renew: bool) -> InlineKeyboardMa
     return b.as_markup()
 
 
+def cancel_confirm_kb(has_auto_renew: bool) -> InlineKeyboardMarkup:
+    """Shown after /cancel — options depend on auto-renew state."""
+    b = InlineKeyboardBuilder()
+    if has_auto_renew:
+        b.row(InlineKeyboardButton(
+            text="🔕 Отключить автопродление",
+            callback_data="cancel:disable_renew",
+        ))
+    b.row(InlineKeyboardButton(
+        text="💰 Запросить возврат",
+        callback_data="cancel:refund",
+    ))
+    b.row(InlineKeyboardButton(text="← Назад", callback_data="cancel:abort"))
+    return b.as_markup()
+
+
+def refund_kb() -> InlineKeyboardMarkup:
+    """Shown after /refund — links to support and policy."""
+    b = InlineKeyboardBuilder()
+    b.row(InlineKeyboardButton(
+        text="💬 Написать в поддержку",
+        url="https://t.me/contentbot_support",
+    ))
+    b.row(InlineKeyboardButton(
+        text="📄 Политика возврата",
+        url="https://landing-copy-coral.vercel.app/vozvrat",
+    ))
+    return b.as_markup()
+
+
 def subscribe_kb() -> InlineKeyboardMarkup:
     """Legacy single-button — replaced by plans_kb in most places."""
     return plans_kb()
