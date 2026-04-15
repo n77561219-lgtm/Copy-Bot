@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Политика возврата — Copy-Bot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #09090b;
+  --surface: #18181b;
+  --accent: #7c3aed;
+  --accent-sub: rgba(124,58,237,0.10);
+  --text: #fafafa;
+  --text-m: #a1a1aa;
+  --text-d: #71717a;
+  --border: rgba(255,255,255,0.08);
+  --border-s: rgba(255,255,255,0.14);
+}
+body {
+  font-family: 'Onest', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+  padding: 0 0 80px;
+}
+nav {
+  padding: 18px 0;
+  border-bottom: 1px solid var(--border);
+  background: rgba(9,9,11,.9);
+  backdrop-filter: blur(14px);
+  position: sticky; top: 0; z-index: 10;
+}
+.nav-inner {
+  max-width: 800px; margin: 0 auto; padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.nav-logo {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 1rem; font-weight: 700; color: var(--text);
+  text-decoration: none;
+}
+.nav-logo-icon {
+  width: 28px; height: 28px; border-radius: 8px;
+  background: var(--accent);
+  display: flex; align-items: center; justify-content: center; font-size: 14px;
+}
+.back-link {
+  font-size: .84rem; color: var(--text-m); text-decoration: none;
+  display: flex; align-items: center; gap: 5px;
+  transition: color .2s;
+}
+.back-link:hover { color: var(--text); }
+
+.wrapper { max-width: 800px; margin: 0 auto; padding: 56px 24px 0; }
+
+.doc-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent);
+  background: var(--accent-sub);
+  border: 1px solid rgba(124,58,237,.22);
+  padding: 5px 12px; border-radius: 100px;
+  margin-bottom: 1.25rem;
+}
+.doc-title {
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  font-weight: 800; letter-spacing: -.02em; line-height: 1.15;
+  margin-bottom: .5rem;
+}
+.doc-subtitle { font-size: .95rem; color: var(--text-m); margin-bottom: .4rem; }
+.doc-date { font-size: .84rem; color: var(--text-d); margin-bottom: 2rem; }
+
+/* Краткое резюме */
+.summary-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px; margin-bottom: 3rem;
+}
+.summary-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+}
+.summary-card .s-icon { font-size: 1.25rem; margin-bottom: .4rem; }
+.summary-card .s-title { font-size: .8rem; font-weight: 700; color: var(--text); margin-bottom: .25rem; }
+.summary-card .s-text { font-size: .8rem; color: var(--text-m); line-height: 1.5; }
+
+.doc-body { display: flex; flex-direction: column; gap: 2.5rem; }
+
+.section-title {
+  font-size: 1.05rem; font-weight: 700;
+  color: var(--text);
+  margin-bottom: 1rem;
+  padding-bottom: .6rem;
+  border-bottom: 1px solid var(--border);
+}
+.section-body { display: flex; flex-direction: column; gap: .7rem; }
+p, li { font-size: .9rem; color: var(--text-m); line-height: 1.75; }
+.sub { font-size: .88rem; color: var(--text-d); padding-left: 1rem; border-left: 2px solid var(--border); }
+strong { color: var(--text); font-weight: 600; }
+ul { padding-left: 1.2rem; display: flex; flex-direction: column; gap: .4rem; }
+li::marker { color: var(--accent); }
+
+.info-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  display: flex; flex-direction: column; gap: .5rem;
+}
+.info-row { display: flex; gap: .75rem; font-size: .88rem; flex-wrap: wrap; }
+.info-key { color: var(--text-d); min-width: 140px; flex-shrink: 0; }
+.info-val { color: var(--text-m); }
+.info-val a { color: var(--accent); text-decoration: none; }
+.info-val a:hover { text-decoration: underline; }
+
+.example-block {
+  background: rgba(124,58,237,.07);
+  border: 1px solid rgba(124,58,237,.2);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  font-size: .86rem; color: var(--text-m);
+}
+.example-block strong { color: var(--accent); }
+
+table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+th { padding: 8px 12px; text-align: left; color: var(--text-d); font-weight: 600; border-bottom: 1px solid var(--border); }
+td { padding: 9px 12px; color: var(--text-m); border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+
+.divider { height: 1px; background: var(--border); }
+
+footer {
+  max-width: 800px; margin: 3rem auto 0; padding: 0 24px;
+  font-size: .8rem; color: var(--text-d); text-align: center;
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <div class="nav-logo-icon">🤖</div>
+      Copy-Bot
+    </a>
+    <a href="/" class="back-link">← На главную</a>
+  </div>
+</nav>
+
+<div class="wrapper">
+  <div class="doc-badge">◆ Документ</div>
+  <h1 class="doc-title">Политика возврата</h1>
+  <div class="doc-subtitle">SaaS-сервис «Контент-мейкер» · Редакция 3.0</div>
+  <div class="doc-date">Дата вступления в силу: «13» апреля 2026 г.</div>
+
+  <!-- Краткое резюме -->
+  <div class="summary-grid">
+    <div class="summary-card">
+      <div class="s-icon">💰</div>
+      <div class="s-title">Могу вернуть деньги?</div>
+      <div class="s-text">Да, в любое время — за оставшиеся дни подписки.</div>
+    </div>
+    <div class="summary-card">
+      <div class="s-icon">⏰</div>
+      <div class="s-title">Первые 7 дней</div>
+      <div class="s-text">Полный возврат без объяснений (минус использованные генерации).</div>
+    </div>
+    <div class="summary-card">
+      <div class="s-icon">📅</div>
+      <div class="s-title">После 7 дней</div>
+      <div class="s-text">Пропорционально оставшимся дням минус стоимость генераций.</div>
+    </div>
+    <div class="summary-card">
+      <div class="s-icon">⚠️</div>
+      <div class="s-title">Сервис не работал?</div>
+      <div class="s-text">Полный возврат, если бот не работал более 24 часов подряд.</div>
+    </div>
+    <div class="summary-card">
+      <div class="s-icon">🔄</div>
+      <div class="s-title">Списали дважды?</div>
+      <div class="s-text">Напишите в поддержку — вернём за 3 рабочих дня.</div>
+    </div>
+    <div class="summary-card">
+      <div class="s-icon">✅</div>
+      <div class="s-title">Как вернуть</div>
+      <div class="s-text">Напишите на <a href="mailto:content.bot.help@yandex.ru">content.bot.help@yandex.ru</a> или в <a href="https://t.me/contentbot_support">@contentbot_support</a>.</div>
+    </div>
+  </div>
+
+  <p style="font-size:.8rem;color:var(--text-d);margin-bottom:3rem;">Это краткое изложение. Юридически обязывающим является полный текст ниже (разделы 1–20).</p>
+
+  <div class="doc-body">
+
+    <div>
+      <div class="section-title">1. Общие положения</div>
+      <div class="section-body">
+        <p>Настоящая Политика возврата денежных средств (далее — «Политика») определяет условия и порядок возврата денежных средств пользователям (далее — «Заказчик») сервиса «Контент-мейкер» (далее — «Сервис»).</p>
+        <p>Исполнитель: <strong>Забирова Вероника Тагировна</strong>, самозанятая (плательщик НПД), ИНН 232300130665, адрес: Краснодарский край, г. Абинск, ул. Приозёрная, д. 23.</p>
+        <p>Политика является неотъемлемой частью <a href="/oferta" style="color:var(--accent)">Публичной оферты</a>. В случае расхождения между документами применяются положения, наиболее благоприятные для Заказчика.</p>
+        <p>Использование Сервиса означает согласие Заказчика с условиями настоящей Политики.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">2. Правовые основания</div>
+      <div class="section-body">
+        <p>Политика разработана в соответствии с:</p>
+        <ul>
+          <li>Законом РФ «О защите прав потребителей» (ст. 29, 32, 26.1, 16.1 п. 4.2);</li>
+          <li>Гражданским кодексом РФ;</li>
+          <li>ФЗ от 27.06.2011 № 161-ФЗ «О национальной платёжной системе»;</li>
+          <li>ФЗ от 15.10.2025 № 376-ФЗ (запрет автосписаний после отказа потребителя, с 01.03.2026);</li>
+          <li>Требованиями платёжной системы ЮKassa.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">3. Описание сервиса и тарифные планы</div>
+      <div class="section-body">
+        <p>«Контент-мейкер» — SaaS-сервис (Telegram-бот <a href="https://t.me/Copy_plan_bot" style="color:var(--accent)">@Copy_plan_bot</a>) для генерации контента. Оплата — через ЮKassa.</p>
+
+        <div class="info-block">
+          <table>
+            <thead>
+              <tr><th>Тариф</th><th>Ежемесячно</th><th>Ежегодно</th><th>Постов</th><th>Изображений</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Free</td><td>0 ₽</td><td>—</td><td>5</td><td>1</td></tr>
+              <tr><td>Базовый</td><td>390 ₽</td><td>3 890 ₽</td><td>30</td><td>5</td></tr>
+              <tr><td>Стандарт</td><td>690 ₽</td><td>6 890 ₽</td><td>80</td><td>15</td></tr>
+              <tr><td>Про</td><td>1 290 ₽</td><td>12 890 ₽</td><td>200</td><td>50</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>Подписка продлевается автоматически каждый месяц (или год) до момента отмены.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">4. Что такое «фактические расходы» и как они считаются</div>
+      <div class="section-body">
+        <p>При возврате из суммы могут быть удержаны фактические расходы — затраты Исполнителя на обработку запросов Заказчика:</p>
+        <ul>
+          <li><strong>Стоимость генераций</strong> — каждый раз, когда создаётся пост, бот обращается к AI-модели. Тарификация — в Приложении 1.</li>
+          <li><strong>Комиссия ЮKassa</strong> — удерживается только если была взята сверх суммы подписки (в стандартных случаях не взимается).</li>
+        </ul>
+        <p>По запросу Заказчика Исполнитель предоставляет детализацию (дата, тип запроса, количество генераций) в течение 5 рабочих дней.</p>
+        <p>Тарификация (Приложение 1) публикуется на сайте и обновляется с уведомлением за 14 дней.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">5. Когда предоставляется возврат</div>
+      <div class="section-body">
+        <p>Возврат предоставляется в следующих случаях:</p>
+        <ul>
+          <li>Заказчик передумал — отказ от услуги в любое время по любой причине (возврат за неиспользованные дни минус фактические расходы);</li>
+          <li>Заказчик отменил подписку до начала нового периода;</li>
+          <li>Первые 7 дней — возврат без объяснения причин (раздел 13);</li>
+          <li>Сервис не работал — по критериям SLA (раздел 8);</li>
+          <li>Сервис работал ненадлежащим образом — ошибки, несоответствие описанию (раздел 9);</li>
+          <li>Двойное или ошибочное списание;</li>
+          <li>Списание после отмены подписки или отвязки карты;</li>
+          <li>По решению Исполнителя.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">6. Когда полный возврат невозможен</div>
+      <div class="section-body">
+        <p>Исполнитель вправе отказать в полном возврате, но обязан вернуть стоимость неиспользованных дней:</p>
+        <ul>
+          <li>Период подписки полностью использован (нет неиспользованных дней);</li>
+          <li>Аккаунт заблокирован за нарушение правил — но стоимость неиспользованных дней всё равно возвращается;</li>
+          <li>Смена тарифа на более дешёвый без обоснования;</li>
+          <li>Платёж произведён другим лицом и Заказчик не прошёл верификацию.</li>
+        </ul>
+        <p><strong>Важно:</strong> право Заказчика на возврат за неиспользованные дни является безусловным. Исполнитель не вправе его ограничить.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">7. Ошибочное и двойное списание</div>
+      <div class="section-body">
+        <p>В случае двойного списания или списания после отмены подписки Заказчик направляет обращение в поддержку. Исполнитель рассматривает обращение в течение 3 рабочих дней и при наличии оснований инициирует возврат.</p>
+        <p>Для обращения: <a href="https://t.me/contentbot_support" style="color:var(--accent)">@contentbot_support</a> или <a href="mailto:content.bot.help@yandex.ru" style="color:var(--accent)">content.bot.help@yandex.ru</a>.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">8. Качество сервиса (SLA)</div>
+      <div class="section-body">
+        <p><strong>Доступность:</strong> не менее 95% времени в месяц (в соответствии с Публичной офертой п. 5.2).</p>
+        <p><strong>Время ответа поддержки:</strong> до 24 часов в рабочие дни.</p>
+        <p><strong>Серьёзная неполадка</strong> — бот полностью не работает для всех или большинства пользователей дольше 24 часов подряд по вине Исполнителя.</p>
+        <p><strong>Не считается неполадкой:</strong> кратковременные перебои (до 4 часов), снижение скорости, плановое обслуживание (о нём предупреждаем за 24 ч).</p>
+        <p>При нарушении SLA Заказчик вправе потребовать снижения цены или полного возврата (при серьёзной неполадке).</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">9. Если сервис работает ненадлежащим образом</div>
+      <div class="section-body">
+        <p>Если Заказчик обнаружил недостатки, он вправе по своему выбору потребовать:</p>
+        <ul>
+          <li>бесплатного исправления;</li>
+          <li>снижения цены;</li>
+          <li>полного возврата (если недостатки существенные или Исполнитель не устранил их в установленный срок).</li>
+        </ul>
+        <p>Доказывать, что Сервис работал нормально, обязан Исполнитель. Если Заказчик опишет проблему подробно (дата, время, описание) — это ускорит рассмотрение.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">10. Как запросить возврат</div>
+      <div class="section-body">
+        <p>Для запроса возврата Заказчик направляет обращение одним из способов:</p>
+        <ul>
+          <li><strong>Telegram:</strong> <a href="https://t.me/contentbot_support" style="color:var(--accent)">@contentbot_support</a></li>
+          <li><strong>Email:</strong> <a href="mailto:content.bot.help@yandex.ru" style="color:var(--accent)">content.bot.help@yandex.ru</a></li>
+        </ul>
+        <p>В обращении нужно указать: имя или Telegram-профиль, дату и сумму платежа, тариф, причину возврата. При технической проблеме — описание и дата обнаружения.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">11. Сроки рассмотрения и возврата</div>
+      <div class="section-body">
+        <div class="info-block">
+          <table>
+            <thead>
+              <tr><th>Ситуация</th><th>Решение</th><th>Зачисление на карту</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Двойное списание / списание после отмены</td><td>3 раб. дня</td><td>+ 2–7 раб. дней</td></tr>
+              <tr><td>Отказ от подписки, первые 7 дней</td><td>5 раб. дней</td><td>+ 2–7 раб. дней</td></tr>
+              <tr><td>Техническая претензия, спорный случай</td><td>10 раб. дней</td><td>+ 2–7 раб. дней</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Возврат производится на тот же платёжный инструмент, с которого была произведена оплата.</p>
+        <p>Вместе с решением Заказчик получает: сумму возврата, детализацию удержанных расходов (если есть), ожидаемый срок зачисления. При отказе — обоснование.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">12. Как рассчитывается сумма возврата</div>
+      <div class="section-body">
+        <p><strong>Полный возврат:</strong> ошибочный платёж, двойное списание, серьёзные неполадки, списание после отмены.</p>
+        <p><strong>Пропорциональный возврат:</strong></p>
+        <p class="sub">Формула: (Стоимость подписки × Оставшиеся дни) ÷ Дней в периоде − Фактические расходы</p>
+
+        <div class="example-block">
+          <strong>Пример:</strong> тариф Стандарт (690 ₽ / 30 дней). Отмена через 10 дней, использовано 15 генераций (по 8 ₽ = 120 ₽).<br>
+          Возврат = 690 × 20 ÷ 30 − 120 = <strong>340 ₽</strong>
+        </div>
+
+        <p>При оплате со скидкой или промокодом возвращается фактически уплаченная сумма.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">13. Первые 7 дней (гарантийный период)</div>
+      <div class="section-body">
+        <p>В течение 7 дней с момента первой оплаты Заказчик вправе отменить подписку и получить возврат без объяснения причин.</p>
+        <p>Гарантийный период действует <strong>однократно</strong> — только при первой оплате. При повторной подписке он не возобновляется (но Заказчик всегда вправе вернуть деньги за неиспользованные дни).</p>
+        <p>Из возврата удерживается только стоимость использованных генераций (Приложение 1).</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">14. Автоматическое продление подписки</div>
+      <div class="section-body">
+        <p>Подписка продлевается автоматически. За 3 дня до списания Заказчик получает уведомление в боте с суммой и инструкцией по отмене.</p>
+        <p>Для отмены автопродления: <a href="https://t.me/contentbot_support" style="color:var(--accent)">@contentbot_support</a> или <a href="mailto:content.bot.help@yandex.ru" style="color:var(--accent)">content.bot.help@yandex.ru</a>. Доступ к Сервису сохраняется до конца оплаченного периода.</p>
+        <p>После отмены подписки или отвязки карты Исполнитель не вправе производить дальнейшие списания. Если списание всё же произошло — Заказчик направляет обращение в поддержку (раздел 7).</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">15. Оспаривание платежа через банк</div>
+      <div class="section-body">
+        <p>Заказчик вправе оспорить платёж через свой банк (чарджбэк). Рекомендуется сначала обратиться к Исполнителю напрямую — возврат в таком случае быстрее.</p>
+        <p>Исполнитель ведёт журнал оказанных услуг и может предоставить платёжной системе данные об использовании Сервиса.</p>
+        <p>При необоснованном чарджбэке (Заказчик пользовался Сервисом, но оспорил платёж) аккаунт может быть заблокирован.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">16. Возврат при блокировке аккаунта</div>
+      <div class="section-body">
+        <p>Даже при блокировке аккаунта за нарушение правил Заказчик получает возврат за неиспользованные дни. Это безусловное законное право Заказчика.</p>
+        <p>Если действия Заказчика причинили Исполнителю убытки — Исполнитель вправе предъявить требование об их возмещении.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">17. Изменение политики</div>
+      <div class="section-body">
+        <p>Исполнитель вправе вносить изменения в настоящую Политику. Изменения вступают в силу через 14 дней после публикации и уведомления (email или Telegram).</p>
+        <p>Изменения не распространяются на ранее совершённые платежи.</p>
+        <p>Если Заказчик не согласен с новыми условиями — он вправе отменить подписку и запросить возврат.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">18. Контакты</div>
+      <div class="section-body">
+        <div class="info-block">
+          <div class="info-row">
+            <span class="info-key">Поддержка (Telegram)</span>
+            <span class="info-val"><a href="https://t.me/contentbot_support">@contentbot_support</a></span>
+          </div>
+          <div class="info-row">
+            <span class="info-key">Email</span>
+            <span class="info-val"><a href="mailto:content.bot.help@yandex.ru">content.bot.help@yandex.ru</a></span>
+          </div>
+          <div class="info-row">
+            <span class="info-key">Бот</span>
+            <span class="info-val"><a href="https://t.me/Copy_plan_bot">@Copy_plan_bot</a></span>
+          </div>
+          <div class="info-row">
+            <span class="info-key">ФИО</span>
+            <span class="info-val">Забирова Вероника Тагировна, самозанятая (НПД), ИНН 232300130665</span>
+          </div>
+          <div class="info-row">
+            <span class="info-key">Сайт</span>
+            <span class="info-val"><a href="https://landing-copy-coral.vercel.app">landing-copy-coral.vercel.app</a></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">19. Если в возврате отказали</div>
+      <div class="section-body">
+        <p>Шаг 1. <strong>Претензия.</strong> Напишите на <a href="mailto:content.bot.help@yandex.ru" style="color:var(--accent)">content.bot.help@yandex.ru</a> с пометкой «Претензия». Срок рассмотрения — 10 рабочих дней.</p>
+        <p>Шаг 2. <strong>Роспотребнадзор.</strong> Подайте жалобу на <a href="https://www.rospotrebnadzor.ru" style="color:var(--accent)">rospotrebnadzor.ru</a>.</p>
+        <p>Шаг 3. <strong>Суд.</strong> По месту жительства Заказчика (ст. 17 Закона о защите прав потребителей). Госпошлина не взимается.</p>
+        <p>Если суд вынесет решение в пользу Заказчика — Исполнитель дополнительно выплачивает штраф в размере 50% от присуждённой суммы (ст. 13 Закона о защите прав потребителей).</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">20. Заключительные положения</div>
+      <div class="section-body">
+        <p>Условия настоящей Политики, ущемляющие права Заказчика как потребителя, являются недействительными в силу ст. 16 Закона РФ «О защите прав потребителей».</p>
+        <p>Вся информация предоставляется на русском языке.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Приложение 1 — Тарификация фактических расходов</div>
+      <div class="section-body">
+        <p>Дата вступления в силу: «13» апреля 2026 г.</p>
+        <p>Себестоимость функций сервиса для расчёта удержаний при возврате:</p>
+
+        <div class="info-block">
+          <table>
+            <thead>
+              <tr><th>Функция</th><th>Стоимость</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Пост (до 500 слов)</td><td>8 ₽</td></tr>
+              <tr><td>Длинный пост (500–1500 слов)</td><td>15 ₽</td></tr>
+              <tr><td>Серия постов (до 5 шт.)</td><td>35 ₽</td></tr>
+              <tr><td>Анализ канала</td><td>20 ₽</td></tr>
+              <tr><td>Контент-план (неделя)</td><td>25 ₽</td></tr>
+              <tr><td>Рерайт поста</td><td>6 ₽</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="example-block">
+          <strong>Пример 1 (гарантийный период):</strong> тариф Стандарт (690 ₽), 5 постов (40 ₽) + 1 контент-план (25 ₽) = 65 ₽ расходов. Возврат = 625 ₽.<br><br>
+          <strong>Пример 2 (после 12 дней):</strong> тариф Про (1 290 ₽ / 30 дней), 20 постов (160 ₽) + 2 анализа (40 ₽) = 200 ₽. Возврат = 1 290 × 18 ÷ 30 − 200 = <strong>574 ₽</strong>
+        </div>
+
+        <p>Тарификация обновляется с уведомлением за 14 дней. Изменения не применяются к возвратам, запрошенным до обновления.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Часто задаваемые вопросы</div>
+      <div class="section-body">
+        <p><strong>В.1. Могу ли я вернуть деньги за подписку?</strong></p>
+        <p class="sub">Да, в любое время. Вернём стоимость неиспользованных дней за вычетом фактически использованных генераций.</p>
+
+        <p><strong>В.2. Как запросить возврат?</strong></p>
+        <p class="sub">Напишите в <a href="https://t.me/contentbot_support" style="color:var(--accent)">@contentbot_support</a> или на <a href="mailto:content.bot.help@yandex.ru" style="color:var(--accent)">content.bot.help@yandex.ru</a>.</p>
+
+        <p><strong>В.3. Сколько мне вернут?</strong></p>
+        <p class="sub">Формула: (цена × оставшиеся дни) ÷ дней в периоде − стоимость использованных генераций. Пример: тариф Стандарт 690 ₽, отмена через 10 дней из 30, 15 генераций по 8 ₽. Возврат = 690 × 20 ÷ 30 − 120 = 340 ₽.</p>
+
+        <p><strong>В.4. Сколько ждать решения?</strong></p>
+        <p class="sub">5 рабочих дней для стандартных случаев, 10 — для сложных. Деньги на карту — ещё 2–7 рабочих дней после решения.</p>
+
+        <p><strong>В.5. Списали дважды. Что делать?</strong></p>
+        <p class="sub">Напишите в поддержку — рассмотрим за 3 рабочих дня.</p>
+
+        <p><strong>В.6. Я отменил подписку, но деньги списались. Что делать?</strong></p>
+        <p class="sub">Напишите в <a href="https://t.me/contentbot_support" style="color:var(--accent)">@contentbot_support</a> или на email — вернём деньги.</p>
+
+        <p><strong>В.7. Что удержат из возврата?</strong></p>
+        <p class="sub">Только стоимость фактически использованных генераций по тарифам Приложения 1.</p>
+
+        <p><strong>В.8. Действует ли 7-дневный гарантийный период при повторной подписке?</strong></p>
+        <p class="sub">Нет, только при первой оплате. Но возврат за неиспользованные дни доступен всегда.</p>
+
+        <p><strong>В.9. Можно ли вернуть деньги на другую карту?</strong></p>
+        <p class="sub">Нет — по закону возврат производится на тот же платёжный инструмент, с которого была оплата.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  <p>© 2026 Контент-мейкер · <a href="/oferta" style="color:var(--text-d);text-decoration:none;">Публичная оферта</a> · <a href="/privacy" style="color:var(--text-d);text-decoration:none;">Политика конфиденциальности</a></p>
+</footer>
+
+</body>
+</html>
