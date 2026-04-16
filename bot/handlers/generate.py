@@ -389,9 +389,9 @@ async def _create_plan(message: Message, state: FSMContext, days: int, user_id: 
     lines = [f"📅 Контент-план на {days} дней:\n"]
     for item in plan:
         lines.append(
-            f"📌 {item.get('date', '')} — {item.get('format', '').upper()}\n"
+            f"📌 {item.get('date', '')} — {item.get('format', '').capitalize()}\n"
             f"{item.get('topic', '')}\n"
-            f"↳ {item.get('angle', '')}\n"
+            f"↳ _{item.get('angle', '')}_\n"
         )
 
     await status.delete()
