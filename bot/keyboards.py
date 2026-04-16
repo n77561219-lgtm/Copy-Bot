@@ -310,6 +310,16 @@ def schedule_queue_kb(posts: list[dict]) -> InlineKeyboardMarkup:
     return b.as_markup()
 
 
+def sched_del_confirm_kb(post_id: int) -> InlineKeyboardMarkup:
+    """Confirm deleting a post from queue."""
+    b = InlineKeyboardBuilder()
+    b.row(
+        InlineKeyboardButton(text="🗑 Да, удалить", callback_data=f"sched:del_confirm:{post_id}"),
+        InlineKeyboardButton(text="← Отмена", callback_data="sched:del_cancel"),
+    )
+    return b.as_markup()
+
+
 def schedule_confirm_kb(scheduled_at_str: str) -> InlineKeyboardMarkup:
     """Confirm adding post to queue."""
     b = InlineKeyboardBuilder()

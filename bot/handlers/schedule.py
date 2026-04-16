@@ -18,7 +18,7 @@ from bot.database import (
 from bot.plans import get_plan, slots_limit
 from bot.keyboards import (
     schedule_main_kb, schedule_queue_kb, schedule_confirm_kb,
-    main_menu, MENU_SCHEDULE,
+    sched_del_confirm_kb, main_menu, MENU_SCHEDULE,
 )
 
 router = Router()
@@ -202,13 +202,34 @@ async def cb_toggle_pause(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data.startswith("sched:del_post:"))
 async def cb_del_post(callback: CallbackQuery) -> None:
-    post_id = int(callback.data.split("sched:del_post:")[1])
+    raw = callback.data.split("sched:del_post:")[1]
+    if not raw.lstrip("-").isdigit():
+        await callback.answer("❌ Неверный ID поста", show_alert=True)
+        return
+    post_id = int(raw)
+    await callback.message.answer(
+        "🗑 Удалить этот пост из очереди?",
+        reply_markup=sched_del_confirm_kb(post_id),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("sched:del_confirm:"))
+async def cb_del_confirm(callback: CallbackQuery) -> None:
+    post_id = int(callback.data.split("sched:del_confirm:")[1])
     deleted = await delete_scheduled_post(post_id, callback.from_user.id)
     if deleted:
         await callback.answer("🗑 Пост удалён из очереди")
     else:
         await callback.answer("⚠️ Не удалось удалить", show_alert=True)
+    await callback.message.delete()
     await _schedule_screen(callback, callback.from_user.id)
+
+
+@router.callback_query(F.data == "sched:del_cancel")
+async def cb_del_cancel(callback: CallbackQuery) -> None:
+    await callback.message.delete()
+    await callback.answer("Отмена")
 
 
 # ── Enqueue post (called from generate.py via "⏰ В очередь") ─────────────────

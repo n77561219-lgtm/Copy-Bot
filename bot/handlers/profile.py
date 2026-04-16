@@ -19,6 +19,7 @@ def _profile_kb(plan_id: str) -> InlineKeyboardButton:
         b.row(InlineKeyboardButton(text="🔄 Продлить / сменить тариф", callback_data="subscribe"))
     else:
         b.row(InlineKeyboardButton(text="⬆️ Улучшить тариф", callback_data="subscribe"))
+    b.row(InlineKeyboardButton(text="✕ Закрыть", callback_data="profile:close"))
     return b.as_markup()
 
 
@@ -82,6 +83,12 @@ async def cmd_profile(message: Message) -> None:
 async def menu_profile(message: Message) -> None:
     text, plan_id = await _profile_text(message.from_user.id)
     await message.answer(text, parse_mode="Markdown", reply_markup=_profile_kb(plan_id))
+
+
+@router.callback_query(F.data == "profile:close")
+async def cb_profile_close(callback: CallbackQuery) -> None:
+    await callback.message.delete()
+    await callback.answer()
 
 
 @router.callback_query(F.data == "subscription_info")
