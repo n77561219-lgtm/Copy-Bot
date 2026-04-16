@@ -3,15 +3,22 @@ from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
 
-from bot.keyboards import MENU_SEARCH, topic_search_kb
+from bot.keyboards import MENU_SEARCH, topic_search_kb, next_topics_kb
 from bot.agents.topic_search import run_topic_search
-from bot.handlers.generate import S, _generate_post
+from bot.handlers.generate import S, _generate_post, _load_style_profile
 
 router = Router()
 
 
 @router.message(F.text == MENU_SEARCH)
 async def menu_topic_search(message: Message, state: FSMContext) -> None:
+    style = await _load_style_profile(message.from_user.id)
+    if not style:
+        await message.answer(
+            "⚠️ Сначала загрузи примеры своих постов — бот ищет темы под твой стиль.",
+            reply_markup=next_topics_kb(),
+        )
+        return
     await state.set_state(S.topic_search_waiting)
     await message.answer("🔍 Введи тему или ключевые слова:")
 
@@ -20,6 +27,13 @@ async def menu_topic_search(message: Message, state: FSMContext) -> None:
 async def cb_trend_by_query(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
     await callback.message.edit_reply_markup(reply_markup=None)
+    style = await _load_style_profile(callback.from_user.id)
+    if not style:
+        await callback.message.answer(
+            "⚠️ Сначала загрузи примеры своих постов — бот ищет темы под твой стиль.",
+            reply_markup=next_topics_kb(),
+        )
+        return
     await state.set_state(S.topic_search_waiting)
     await callback.message.answer("🔍 Введи тему или ключевые слова:")
 
@@ -70,4 +84,5 @@ async def cb_topicsearch_write(callback: CallbackQuery, state: FSMContext) -> No
         topic=topic["title"],
         post_type="мнение",
         feedback=topic.get("angle", ""),
+        user_id=callback.from_user.id,
     )

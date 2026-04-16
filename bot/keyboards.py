@@ -297,16 +297,27 @@ def schedule_main_kb(paused: bool, pending: int) -> InlineKeyboardMarkup:
     return b.as_markup()
 
 
-def schedule_queue_kb(posts: list[dict]) -> InlineKeyboardMarkup:
-    """List of queued posts with delete buttons."""
+def schedule_queue_kb(posts: list[dict], page: int = 0) -> InlineKeyboardMarkup:
+    """List of queued posts with delete buttons. 10 per page."""
     b = InlineKeyboardBuilder()
-    for post in posts[:10]:
+    per_page = 10
+    total = len(posts)
+    chunk = posts[page * per_page:(page + 1) * per_page]
+    for post in chunk:
         topic = (post.get("topic") or "без темы")[:25]
         dt = post["scheduled_at"].strftime("%d.%m %H:%M")
         b.row(InlineKeyboardButton(
             text=f"🗑 {dt} — {topic}",
             callback_data=f"sched:del_post:{post['id']}",
         ))
+    # pagination row
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="← Пред.", callback_data=f"sched:queue_page:{page - 1}"))
+    if (page + 1) * per_page < total:
+        nav.append(InlineKeyboardButton(text="След. →", callback_data=f"sched:queue_page:{page + 1}"))
+    if nav:
+        b.row(*nav)
     return b.as_markup()
 
 

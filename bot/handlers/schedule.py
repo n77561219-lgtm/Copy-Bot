@@ -232,6 +232,18 @@ async def cb_del_cancel(callback: CallbackQuery) -> None:
     await callback.answer("Отмена")
 
 
+# ── Queue pagination ──────────────────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("sched:queue_page:"))
+async def cb_queue_page(callback: CallbackQuery) -> None:
+    page = int(callback.data.split("sched:queue_page:")[1])
+    queue = await get_user_queue(callback.from_user.id)
+    await callback.message.edit_reply_markup(
+        reply_markup=schedule_queue_kb(queue, page=page)
+    )
+    await callback.answer()
+
+
 # ── Enqueue post (called from generate.py via "⏰ В очередь") ─────────────────
 
 @router.callback_query(F.data == "schedule:enqueue")
