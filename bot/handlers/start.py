@@ -70,9 +70,12 @@ async def cmd_start(message: Message, is_referred: bool = False) -> None:
             reply_markup=main_menu(),
         )
         await message.answer(
-            "🎯 *Шаг 1 из 2 — загрузи примеры своих постов*\n\n"
-            "Экспортируй историю своего Telegram-канала в JSON и отправь файл сюда.\n\n"
-            "_Или загрузи Tone of Voice документ в формате .md_",
+            "🎯 *Шаг 1 — загрузи примеры своих постов*\n\n"
+            "Чтобы бот писал в твоём стиле, нужно показать ему примеры:\n\n"
+            "📁 *Вариант 1* — экспорт Telegram-канала:\n"
+            "Telegram Desktop → твой канал → ··· → Экспорт истории → формат JSON → отправь файл сюда\n\n"
+            "📝 *Вариант 2* — текстовый файл .md:\n"
+            "Создай файл с описанием своего стиля: тон, темы, примеры фраз — и отправь его",
             parse_mode="Markdown",
             reply_markup=_onboarding_kb(),
         )

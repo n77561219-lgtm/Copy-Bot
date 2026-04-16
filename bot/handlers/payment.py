@@ -181,8 +181,8 @@ async def cb_subscribe_plan(callback: CallbackQuery) -> None:
         f"{plan['emoji']} *{plan['name']}* — {price_str}\n"
         f"📅 Период: {period_label}\n\n"
         f"{plan['description']}\n\n"
-        f"Отметь галочку, чтобы бот автоматически присылал счёт на продление "
-        f"за 3 дня до истечения подписки. Оплата всегда требует твоего подтверждения."
+        f"☑️ *Автопродление* — за 3 дня до конца подписки бот пришлёт счёт.\n"
+        f"Деньги списываются только после того, как ты сам нажмёшь «Оплатить»."
     )
     await callback.message.answer(
         text,
