@@ -7,10 +7,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery
 
 from bot.config import settings
-from bot.database import save_post, save_content_plan, get_content_plan, log_usage
-from bot.content_plan_reader import (
-    get_upcoming, get_all, format_upcoming, format_all, mark_done,
-)
+from bot.database import save_post, save_content_plan, get_content_plan, log_usage, mark_plan_done
 from bot.handlers.settings import get_setting
 from bot.agents.dispatcher import run_dispatcher
 from bot.agents.researcher import run_researcher
@@ -183,23 +180,34 @@ async def menu_write(message: Message, state: FSMContext) -> None:
     await state.set_state(S.waiting_post_topic)
 
 
-async def _show_upcoming(target: Message) -> None:
+async def _show_upcoming(target: Message, user_id: int) -> None:
     """Send next 3 planned posts with action keyboard."""
-    upcoming = get_upcoming(3)
-    text = format_upcoming(upcoming)
-    dates = [p.date.isoformat() for p in upcoming]
+    from datetime import date
+    plan = await get_content_plan(user_id)
+    today = date.today().isoformat()
+    upcoming = [p for p in plan if p["status"] == "planned" and str(p["date"]) >= today][:3]
+    if not upcoming:
+        text = "📋 Ближайших запланированных постов нет.\n\nСоздай план — нажми *🤖 Создать план* или /plan"
+        dates = []
+    else:
+        lines = ["📋 Ближайшие темы:\n"]
+        for i, p in enumerate(upcoming, 1):
+            lines.append(f"{i}. *{p['topic']}*\n↳ _{p['angle']}_\n")
+        text = "\n".join(lines)
+        dates = [str(p["date"]) for p in upcoming]
     await target.answer(text, reply_markup=plan_actions_keyboard(dates), parse_mode="Markdown")
 
 
 @router.message(F.text == MENU_PLAN)
 async def menu_plan(message: Message, state: FSMContext) -> None:
-    await _show_upcoming(message)
+    await _show_upcoming(message, message.from_user.id)
 
 
 @router.message(F.text == MENU_STYLE)
 async def menu_style(message: Message) -> None:
+    from bot.handlers.upload import style_profile_path
     user_id = message.from_user.id
-    path = _style_profile_path(user_id)
+    path = style_profile_path(user_id)
     if not os.path.exists(path):
         await message.answer(
             "🎨 Стиль не загружен.\n\n"
@@ -291,12 +299,17 @@ async def handle_text(message: Message, state: FSMContext) -> None:
             return
         style_profile = await _load_style_profile(user_id)
         status = await message.answer("✏️ Редактирую...")
-        edited = await run_editor(
-            post=post,
-            style_profile=style_profile,
-            mode="custom",
-            custom_instruction=message.text,
-        )
+        try:
+            edited = await run_editor(
+                post=post,
+                style_profile=style_profile,
+                mode="custom",
+                custom_instruction=message.text,
+            )
+        except Exception as e:
+            await status.edit_text(f"❌ Ошибка редактирования: {str(e)[:200]}")
+            await state.set_state(S.post_shown)
+            return
         await log_usage(user_id, "post_edited")
         await status.delete()
         await message.answer(edited, reply_markup=edit_actions_keyboard())
@@ -561,18 +574,23 @@ async def cb_plan_ai(callback: CallbackQuery, state: FSMContext) -> None:
 @router.callback_query(F.data == "plan:show_all")
 async def cb_plan_all(callback: CallbackQuery) -> None:
     await callback.answer()
-    all_posts = get_all(include_done=True)
-    if not all_posts:
-        await callback.message.answer("📋 Плановых постов нет. Редактируй content-plan.md")
+    plan = await get_content_plan(callback.from_user.id)
+    if not plan:
+        await callback.message.answer("📋 Плановых постов нет.\n\nСоздай план — /plan")
         return
-    await callback.message.answer(format_all(all_posts))
+    status_icons = {"planned": "⬜", "done": "✅"}
+    lines = ["📋 Весь план:\n"]
+    for p in plan:
+        icon = status_icons.get(p["status"], "⬜")
+        lines.append(f"{icon} {p['date']} — {p['topic']}")
+    await callback.message.answer("\n".join(lines))
 
 
 @router.callback_query(F.data.startswith("plan:write:"))
 async def cb_plan_write(callback: CallbackQuery, state: FSMContext) -> None:
     date_str = callback.data.split("plan:write:")[1]
-    all_posts = get_all()
-    post = next((p for p in all_posts if p.date.isoformat() == date_str), None)
+    plan = await get_content_plan(callback.from_user.id)
+    post = next((p for p in plan if str(p["date"]) == date_str), None)
     if not post:
         await callback.answer("❌ Пост не найден")
         return
@@ -580,9 +598,9 @@ async def cb_plan_write(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.message.edit_reply_markup(reply_markup=None)
     await _generate_post(
         callback.message, state,
-        topic=post.topic,
-        post_type=post.fmt or "мнение",
-        feedback=post.angle,
+        topic=post["topic"],
+        post_type=post["format"] or "мнение",
+        feedback=post["angle"],
         user_id=callback.from_user.id,
     )
 
@@ -622,17 +640,11 @@ async def cb_image_generate(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(F.data.startswith("plan:done:"))
 async def cb_plan_done(callback: CallbackQuery) -> None:
-    from datetime import datetime
     date_str = callback.data.split("plan:done:")[1]
-    try:
-        d = datetime.strptime(date_str, "%Y-%m-%d").date()
-    except ValueError:
-        await callback.answer("❌ Неверная дата")
-        return
-    marked = mark_done(d)
+    marked = await mark_plan_done(callback.from_user.id, date_str)
     if marked:
         await callback.answer("✅ Отмечено как готово!")
     else:
-        await callback.answer("⚠️ Не удалось найти пост в файле")
+        await callback.answer("⚠️ Пост уже отмечен или не найден")
     await callback.message.edit_reply_markup(reply_markup=None)
-    await _show_upcoming(callback.message)
+    await _show_upcoming(callback.message, callback.from_user.id)

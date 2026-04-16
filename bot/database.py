@@ -224,6 +224,15 @@ async def get_content_plan(user_id: int) -> list[dict]:
     ]
 
 
+async def mark_plan_done(user_id: int, date_str: str) -> bool:
+    async with get_pool().acquire() as conn:
+        result = await conn.execute(
+            "UPDATE content_plan SET status='done' WHERE user_id=$1 AND date=$2 AND status='planned'",
+            user_id, date_str,
+        )
+    return result != "UPDATE 0"
+
+
 # ── User preferences ──────────────────────────────────────────────────────────
 
 async def set_preference(user_id: int, key: str, value: str) -> None:

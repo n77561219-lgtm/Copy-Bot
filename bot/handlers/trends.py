@@ -10,8 +10,8 @@ from bot.handlers.generate import S, _generate_post, _load_style_profile
 router = Router()
 
 
-async def _fetch_and_show_trends(target: Message, state: FSMContext) -> None:
-    style_profile = _load_style_profile()
+async def _fetch_and_show_trends(target: Message, state: FSMContext, user_id: int) -> None:
+    style_profile = await _load_style_profile(user_id)
     main_topics = (
         style_profile.get("content_patterns", {}).get("main_topics", [])
         if style_profile else []
@@ -50,7 +50,7 @@ async def _fetch_and_show_trends(target: Message, state: FSMContext) -> None:
 
 @router.message(F.text == MENU_TRENDS)
 async def menu_trends(message: Message, state: FSMContext) -> None:
-    style_profile = _load_style_profile()
+    style_profile = await _load_style_profile(message.from_user.id)
     topics = (
         style_profile.get("content_patterns", {}).get("main_topics", [])
         if style_profile else []
@@ -67,14 +67,14 @@ async def menu_trends(message: Message, state: FSMContext) -> None:
 async def cb_trend_by_niche(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
     await callback.message.edit_reply_markup(reply_markup=None)
-    await _fetch_and_show_trends(callback.message, state)
+    await _fetch_and_show_trends(callback.message, state, callback.from_user.id)
 
 
 @router.callback_query(F.data == "trend:refresh")
 async def cb_trend_refresh(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer("🔄 Обновляю...")
     await callback.message.edit_reply_markup(reply_markup=None)
-    await _fetch_and_show_trends(callback.message, state)
+    await _fetch_and_show_trends(callback.message, state, callback.from_user.id)
 
 
 @router.callback_query(F.data.startswith("trend:write:"))
@@ -94,4 +94,5 @@ async def cb_trend_write(callback: CallbackQuery, state: FSMContext) -> None:
         topic=trend["title"],
         post_type="мнение",
         feedback=trend.get("angle", ""),
+        user_id=callback.from_user.id,
     )
