@@ -59,12 +59,12 @@ async def cmd_start(message: Message, is_referred: bool = False) -> None:
 
     if is_new:
         await message.answer(
-            "👋 Привет! Я твой персональный копирайтер.\n\n"
-            "Я пишу посты *в твоём стиле* — достаточно один раз загрузить примеры.\n\n"
-            "✍️ Посты и тексты\n"
-            "📋 Контент-план на несколько недель\n"
-            "🔥 Тренды по твоей нише\n"
-            "🖼 Картинки к постам"
+            "👋 Привет! Я КопиБОТ — твой AI-копирайтер для Telegram, ВКонтакте и MAX.\n\n"
+            "Один раз покажи мне свои посты — я изучу стиль и буду писать как ты, только быстрее:\n\n"
+            "✍️ Посты в твоём голосе\n"
+            "📋 Готовый контент-план\n"
+            "🔥 Актуальные тренды ниши\n"
+            "🖼 Иллюстрации к постам"
             + trial_note,
             parse_mode="Markdown",
             reply_markup=main_menu(),
@@ -81,7 +81,7 @@ async def cmd_start(message: Message, is_referred: bool = False) -> None:
         )
     else:
         await message.answer(
-            "👋 С возвращением!"
+            "👋 С возвращением! Готов писать — выбирай что делаем."
             + trial_note,
             parse_mode="Markdown",
             reply_markup=main_menu(),
