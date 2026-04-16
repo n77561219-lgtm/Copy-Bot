@@ -203,14 +203,17 @@ def format_choice_kb(platform: str = "telegram") -> InlineKeyboardMarkup:
 
 def checkout_kb(plan_id: str, period: str, auto_renew: bool) -> InlineKeyboardMarkup:
     """Checkout confirmation screen with auto-renew toggle."""
+    from bot.plans import PLANS
     b = InlineKeyboardBuilder()
     renew_mark = "✅" if auto_renew else "☐"
+    plan = PLANS.get(plan_id, {})
+    price = plan.get("price_rub_year" if period == "year" else "price_rub", 0)
     b.row(InlineKeyboardButton(
         text=f"{renew_mark} Согласен на автопродление",
         callback_data=f"checkout:toggle:{plan_id}:{period}",
     ))
     b.row(InlineKeyboardButton(
-        text="💳 Оплатить",
+        text=f"💳 Оплатить {price} ₽",
         callback_data=f"checkout:pay:{plan_id}:{period}:{'1' if auto_renew else '0'}",
     ))
     b.row(InlineKeyboardButton(text="← Назад к тарифам", callback_data="subscribe"))
