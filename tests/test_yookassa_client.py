@@ -33,15 +33,16 @@ def test_create_payment_returns_id_and_url():
     called_with = mock_create.call_args[0][0]
     assert called_with["save_payment_method"] is True
     assert called_with["amount"]["value"] == "390.00"
-    assert called_with["metadata"]["user_id"] == 123
+    assert called_with["metadata"]["user_id"] == str(123)
     assert called_with["metadata"]["is_renewal"] == "false"
 
 
 def test_create_payment_uses_correct_currency():
     from bot.yookassa_client import create_payment
-    with patch("bot.yookassa_client.Payment.create", return_value=_make_payment()):
-        result = create_payment(123, "pro", "year", 12890, "https://t.me/bot", "idem_002")
-    assert result["payment_id"] is not None
+    with patch("bot.yookassa_client.Payment.create", return_value=_make_payment()) as mock_create:
+        create_payment(123, "pro", "year", 12890, "https://t.me/bot", "idem_002")
+    called = mock_create.call_args[0][0]
+    assert called["amount"]["currency"] == "RUB"
 
 
 def test_create_renewal_payment_no_confirmation():
@@ -82,3 +83,18 @@ def test_create_payment_amount_formatted_with_two_decimals():
     called = mock_create.call_args[0][0]
     assert called["amount"]["value"] == "690.00"
     assert called["amount"]["currency"] == "RUB"
+
+
+def test_init_yookassa_calls_configure():
+    from bot.yookassa_client import init_yookassa
+    with patch("bot.yookassa_client.Configuration.configure") as mock_configure:
+        init_yookassa("shop_123", "secret_456")
+    mock_configure.assert_called_once_with("shop_123", "secret_456")
+
+
+def test_init_yookassa_raises_on_empty_credentials():
+    from bot.yookassa_client import init_yookassa
+    with pytest.raises(ValueError):
+        init_yookassa("", "secret")
+    with pytest.raises(ValueError):
+        init_yookassa("shop", "")
