@@ -20,6 +20,13 @@ class Settings(BaseSettings):
     # Apify
     apify_token: str = ""
 
+    # ЮКасса
+    yookassa_shop_id: str = ""
+    yookassa_secret_key: str = ""
+    webhook_secret: str = ""
+    bot_url: str = "https://t.me/Copy_plan_bot"
+    webhook_port: int = 8080
+
     # Database
     database_url: str = "postgresql://copybot_user:copybot_pass_2026@localhost:5432/copybot"
 

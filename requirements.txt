@@ -6,3 +6,7 @@ aiofiles==24.1.0
 python-dotenv==1.0.1
 pytrends==4.9.2
 httpx==0.28.1
+aiohttp==3.10.11
+yookassa==3.10.0
+pytest==8.3.5
+pytest-asyncio==0.25.3
