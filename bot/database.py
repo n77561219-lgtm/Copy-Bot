@@ -342,7 +342,7 @@ async def ensure_free_plan(user_id: int) -> None:
 async def get_subscription(user_id: int) -> Optional[dict]:
     async with get_pool().acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT plan, status, started_at, expires_at FROM subscriptions WHERE user_id=$1",
+            "SELECT plan, status, started_at, expires_at, billing_period_start, next_renewal_at, renewal_status FROM subscriptions WHERE user_id=$1",
             user_id,
         )
     if not row:
@@ -350,6 +350,10 @@ async def get_subscription(user_id: int) -> Optional[dict]:
     result = dict(row)
     if result.get("expires_at") is not None:
         result["expires_at"] = _as_utc(result["expires_at"])
+    if result.get("billing_period_start") is not None:
+        result["billing_period_start"] = _as_utc(result["billing_period_start"])
+    if result.get("next_renewal_at") is not None:
+        result["next_renewal_at"] = _as_utc(result["next_renewal_at"])
     return result
 
 
