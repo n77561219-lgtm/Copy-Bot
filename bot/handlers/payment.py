@@ -10,7 +10,7 @@ from aiogram.types import (
 
 from aiogram.filters import Command
 
-from bot.database import activate_subscription, get_subscription, log_usage, set_preference, get_preference, log_payment
+from bot.database import activate_subscription, get_subscription, log_usage, set_preference, get_preference
 from bot.keyboards import main_menu, plans_kb, checkout_kb, cancel_confirm_kb, refund_kb, MENU_PLANS
 from bot.plans import PLANS, PAID_PLANS
 
