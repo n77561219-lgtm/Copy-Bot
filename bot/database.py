@@ -426,20 +426,21 @@ async def activate_subscription(
                 else now)
         new_expires = base + timedelta(days=30 * months)
         next_renewal = new_expires - timedelta(days=3)
+        billing_start = base  # start of the new paid period
 
         await conn.execute(
             """
             INSERT INTO subscriptions
               (user_id, plan, status, expires_at, payment_id, billing_period_start,
                next_renewal_at, renewal_status, payment_method_id)
-            VALUES ($1, $2, 'active', $3, $4, NOW(), $5, 'ok', $6)
+            VALUES ($1, $2, 'active', $3, $4, $5, $6, 'ok', $7)
             ON CONFLICT (user_id) DO UPDATE
               SET plan=$2, status='active', expires_at=$3, payment_id=$4,
-                  billing_period_start=NOW(), next_renewal_at=$5,
+                  billing_period_start=$5, next_renewal_at=$6,
                   renewal_status='ok',
-                  payment_method_id=COALESCE($6, subscriptions.payment_method_id)
+                  payment_method_id=COALESCE($7, subscriptions.payment_method_id)
             """,
-            user_id, plan, new_expires, payment_id, next_renewal, payment_method_id,
+            user_id, plan, new_expires, payment_id, billing_start, next_renewal, payment_method_id,
         )
 
 
@@ -738,21 +739,22 @@ async def upsert_payment_method(
 ) -> int:
     """Save or update a payment method. Returns internal id."""
     async with get_pool().acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            INSERT INTO payment_methods (user_id, yookassa_method_id, type, brand, last4, is_default, is_active)
-            VALUES ($1, $2, $3, $4, $5, TRUE, TRUE)
-            ON CONFLICT (yookassa_method_id) DO UPDATE
-              SET brand=$4, last4=$5, is_active=TRUE, is_default=TRUE
-            RETURNING id
-            """,
-            user_id, yookassa_method_id, type, brand, last4,
-        )
-        method_id = row["id"]
-        await conn.execute(
-            "UPDATE payment_methods SET is_default=FALSE WHERE user_id=$1 AND id != $2",
-            user_id, method_id,
-        )
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                """
+                INSERT INTO payment_methods (user_id, yookassa_method_id, type, brand, last4, is_default, is_active)
+                VALUES ($1, $2, $3, $4, $5, TRUE, TRUE)
+                ON CONFLICT (yookassa_method_id) DO UPDATE
+                  SET brand=$4, last4=$5, is_active=TRUE, is_default=TRUE
+                RETURNING id
+                """,
+                user_id, yookassa_method_id, type, brand, last4,
+            )
+            method_id = row["id"]
+            await conn.execute(
+                "UPDATE payment_methods SET is_default=FALSE WHERE user_id=$1 AND id != $2",
+                user_id, method_id,
+            )
     return method_id
 
 
@@ -806,7 +808,11 @@ async def record_payment(
 async def get_payment_by_yookassa_id(yookassa_payment_id: str) -> Optional[dict]:
     async with get_pool().acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT * FROM payments WHERE yookassa_payment_id=$1",
+            """
+            SELECT id, user_id, yookassa_payment_id, plan, period, amount_rub,
+                   status, payment_method_id, is_renewal, idempotence_key, created_at, updated_at
+            FROM payments WHERE yookassa_payment_id=$1
+            """,
             yookassa_payment_id,
         )
     return dict(row) if row else None
@@ -865,6 +871,9 @@ async def get_expired_paid_subscriptions() -> list[dict]:
 
 async def set_renewal_status(user_id: int, status: str) -> None:
     """Update renewal_status: 'ok' | 'failed' | 'cancelled' | 'pending'."""
+    _valid = {"ok", "failed", "cancelled", "pending"}
+    if status not in _valid:
+        raise ValueError(f"Invalid renewal_status {status!r}, must be one of {_valid}")
     async with get_pool().acquire() as conn:
         await conn.execute(
             "UPDATE subscriptions SET renewal_status=$2 WHERE user_id=$1",
@@ -879,7 +888,7 @@ async def expire_subscription(user_id: int) -> None:
             """
             UPDATE subscriptions
             SET plan='free', status='active', expires_at='infinity',
-                payment_method_id=NULL, next_renewal_at=NULL, renewal_status='ok',
+                payment_method_id=NULL, next_renewal_at=NULL, renewal_status='cancelled',
                 billing_period_start=NULL
             WHERE user_id=$1
             """,
