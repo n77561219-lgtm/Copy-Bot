@@ -1,18 +1,22 @@
-"""Telegram Stars payment handler — monthly/annual plans with auto-renew consent."""
+"""ЮКасса payment handler — monthly/annual plans with auto-renew consent."""
+import uuid
+import asyncio
+import logging
 from aiogram import Router, F
 from aiogram.types import (
     Message,
     CallbackQuery,
-    LabeledPrice,
-    PreCheckoutQuery,
-    SuccessfulPayment,
 )
 
 from aiogram.filters import Command
 
-from bot.database import activate_subscription, get_subscription, log_usage, set_preference, get_preference
-from bot.keyboards import main_menu, plans_kb, checkout_kb, cancel_confirm_kb, refund_kb, MENU_PLANS
+from bot.yookassa_client import create_payment as yk_create_payment
+from bot.database import activate_subscription, get_subscription, log_usage, set_preference, get_preference, record_payment
+from bot.keyboards import main_menu, plans_kb, checkout_kb, cancel_confirm_kb, refund_kb, payment_link_kb, MENU_PLANS
 from bot.plans import PLANS, PAID_PLANS
+from bot.config import settings
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
@@ -219,7 +223,7 @@ async def cb_checkout_toggle(callback: CallbackQuery) -> None:
 
 @router.callback_query(F.data.startswith("checkout:pay:"))
 async def cb_checkout_pay(callback: CallbackQuery) -> None:
-    """Send invoice after checkout confirmation."""
+    """Create ЮКасса payment and send link to user."""
     # checkout:pay:{plan_id}:{period}:{auto_renew}
     parts = callback.data.split(":")
     plan_id = parts[2]
@@ -230,79 +234,56 @@ async def cb_checkout_pay(callback: CallbackQuery) -> None:
         await callback.answer("Неверный тариф", show_alert=True)
         return
 
-    # Save auto-renew preference before payment
-    await set_preference(callback.from_user.id, "auto_renew", "1" if auto_renew else "0")
-
+    user_id = callback.from_user.id
     plan = PLANS[plan_id]
     is_annual = period == "year"
+    months = 12 if is_annual else 1
+    amount_rub = plan["price_rub_year"] if is_annual else plan["price_rub"]
 
-    if is_annual:
-        amount = plan["stars_year"]
-        label = "12 месяцев (−17%)"
-        payload = f"subscription_{plan_id}_12month"
-        price_str = f"{plan['price_rub_year']}₽/год"
-    else:
-        amount = plan["stars"]
-        label = "1 месяц"
-        payload = f"subscription_{plan_id}_1month"
-        price_str = f"{plan['price_rub']}₽/мес"
+    await set_preference(user_id, "auto_renew", "1" if auto_renew else "0")
+    await set_preference(user_id, "last_period", period)
 
+    idempotence_key = str(uuid.uuid4())
+
+    try:
+        result = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: yk_create_payment(
+                user_id=user_id,
+                plan_id=plan_id,
+                period=period,
+                amount_rub=amount_rub,
+                return_url=settings.bot_url,
+                idempotence_key=idempotence_key,
+            ),
+        )
+    except Exception as e:
+        logger.error("ЮКасса create_payment error for user %s: %s", user_id, e)
+        await callback.message.answer(
+            "❌ Не удалось создать счёт. Попробуй позже или напиши в поддержку.",
+            parse_mode="Markdown",
+        )
+        await callback.answer()
+        return
+
+    await record_payment(
+        user_id=user_id,
+        yookassa_payment_id=result["payment_id"],
+        plan=plan_id,
+        period=period,
+        amount_rub=amount_rub,
+        is_renewal=False,
+        idempotence_key=idempotence_key,
+    )
+
+    period_label = "12 месяцев (−17%)" if is_annual else "1 месяц"
     await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.message.answer_invoice(
-        title=f"КопиБОТ {plan['emoji']} {plan['name']}",
-        description=f"{plan['description']} • {price_str}",
-        payload=payload,
-        currency="XTR",
-        prices=[LabeledPrice(label=label, amount=amount)],
+    await callback.message.answer(
+        f"💳 *Оплата {plan['emoji']} {plan['name']}*\n\n"
+        f"Сумма: *{amount_rub} ₽* · {period_label}\n\n"
+        f"После оплаты карта будет сохранена для автопродления.\n"
+        f"Нажми кнопку ниже для перехода на страницу оплаты:",
+        parse_mode="Markdown",
+        reply_markup=payment_link_kb(result["confirmation_url"]),
     )
     await callback.answer()
-
-
-# ── Payment processing ────────────────────────────────────────────────────────
-
-@router.pre_checkout_query()
-async def pre_checkout(query: PreCheckoutQuery) -> None:
-    await query.answer(ok=True)
-
-
-@router.message(F.successful_payment)
-async def successful_payment(message: Message) -> None:
-    payment: SuccessfulPayment = message.successful_payment
-    user_id = message.from_user.id
-
-    # Parse plan and period from payload: subscription_{plan_id}_{N}month
-    payload = payment.invoice_payload
-    parts = payload.split("_")
-    plan_id = parts[1] if len(parts) >= 2 else "basic"
-    period_part = parts[2] if len(parts) >= 3 else "1month"
-    months = 12 if period_part.startswith("12") else 1
-
-    if plan_id not in PAID_PLANS:
-        plan_id = "basic"
-
-    period = "year" if months == 12 else "month"
-    await activate_subscription(user_id, plan=plan_id, months=months,
-                                 payment_id=payment.telegram_payment_charge_id)
-    await set_preference(user_id, "last_period", period)
-    await log_usage(user_id, "payment")
-    plan = PLANS[plan_id]
-    amount_rub = plan["price_rub_year"] if months == 12 else plan["price_rub"]
-    await log_payment(user_id, plan_id, period, amount_rub)
-
-    sub = await get_subscription(user_id)
-    expires = sub["expires_at"].strftime("%d.%m.%Y") if sub else "—"
-    period_label = "12 месяцев" if months == 12 else "1 месяц"
-
-    auto_renew = await get_preference(user_id, "auto_renew") == "1"
-    renew_line = "\n🔄 Автопродление: *включено* — пришлём счёт за 3 дня до истечения" if auto_renew else ""
-
-    await message.answer(
-        f"✅ *Подписка активирована!*\n\n"
-        f"{plan['emoji']} Тариф: *{plan['name']}*\n"
-        f"📅 Период: *{period_label}*\n"
-        f"📅 Действует до: *{expires}*"
-        f"{renew_line}\n\n"
-        f"Спасибо — все функции тарифа доступны.",
-        parse_mode="Markdown",
-        reply_markup=main_menu(),
-    )

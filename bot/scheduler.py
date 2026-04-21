@@ -111,24 +111,8 @@ async def _send_renewal_notifications(bot: Bot) -> None:
                 auto_renew = await get_preference(user_id, "auto_renew") == "1"
 
                 if auto_renew and days <= 1:
-                    # Send invoice directly — user just needs to tap Pay
-                    from aiogram.types import LabeledPrice
-                    plan_data = PLANS[sub["plan"]]
-                    period = await get_preference(user_id, "last_period") or "month"
-                    is_annual = period == "year"
-                    amount = plan_data["stars_year"] if is_annual else plan_data["stars"]
-                    label = "12 месяцев (−17%)" if is_annual else "1 месяц"
-                    payload = f"subscription_{sub['plan']}_{'12' if is_annual else '1'}month"
-
+                    # Автосписание запустится в auto_renewal_loop — просто напоминаем
                     await bot.send_message(user_id, text, parse_mode="Markdown")
-                    await bot.send_invoice(
-                        chat_id=user_id,
-                        title=f"КопиБОТ {plan_data['emoji']} {plan_data['name']} — продление",
-                        description=f"{plan_data['description']} • автопродление",
-                        payload=payload,
-                        currency="XTR",
-                        prices=[LabeledPrice(label=label, amount=amount)],
-                    )
                 else:
                     from bot.keyboards import plans_kb
                     await bot.send_message(

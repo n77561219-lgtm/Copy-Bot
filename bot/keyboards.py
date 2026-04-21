@@ -250,6 +250,13 @@ def refund_kb() -> InlineKeyboardMarkup:
     return b.as_markup()
 
 
+def payment_link_kb(url: str) -> InlineKeyboardMarkup:
+    """Кнопка перехода на страницу оплаты ЮКасса."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💳 Перейти к оплате", url=url)],
+    ])
+
+
 def subscribe_kb() -> InlineKeyboardMarkup:
     """Legacy single-button — replaced by plans_kb in most places."""
     return plans_kb()
