@@ -246,7 +246,7 @@ async def cb_checkout_pay(callback: CallbackQuery) -> None:
     idempotence_key = str(uuid.uuid4())
 
     try:
-        result = await asyncio.get_event_loop().run_in_executor(
+        result = await asyncio.get_running_loop().run_in_executor(
             None,
             lambda: yk_create_payment(
                 user_id=user_id,
@@ -266,24 +266,25 @@ async def cb_checkout_pay(callback: CallbackQuery) -> None:
         await callback.answer()
         return
 
-    await record_payment(
-        user_id=user_id,
-        yookassa_payment_id=result["payment_id"],
-        plan=plan_id,
-        period=period,
-        amount_rub=amount_rub,
-        is_renewal=False,
-        idempotence_key=idempotence_key,
-    )
-
     period_label = "12 месяцев (−17%)" if is_annual else "1 месяц"
     await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.message.answer(
-        f"💳 *Оплата {plan['emoji']} {plan['name']}*\n\n"
-        f"Сумма: *{amount_rub} ₽* · {period_label}\n\n"
-        f"После оплаты карта будет сохранена для автопродления.\n"
-        f"Нажми кнопку ниже для перехода на страницу оплаты:",
-        parse_mode="Markdown",
-        reply_markup=payment_link_kb(result["confirmation_url"]),
-    )
-    await callback.answer()
+    try:
+        await callback.message.answer(
+            f"💳 *Оплата {plan['emoji']} {plan['name']}*\n\n"
+            f"Сумма: *{amount_rub} ₽* · {period_label}\n\n"
+            f"После оплаты карта будет сохранена для автопродления.\n"
+            f"Нажми кнопку ниже для перехода на страницу оплаты:",
+            parse_mode="Markdown",
+            reply_markup=payment_link_kb(result["confirmation_url"]),
+        )
+        await record_payment(
+            user_id=user_id,
+            yookassa_payment_id=result["payment_id"],
+            plan=plan_id,
+            period=period,
+            amount_rub=amount_rub,
+            is_renewal=False,
+            idempotence_key=idempotence_key,
+        )
+    finally:
+        await callback.answer()
