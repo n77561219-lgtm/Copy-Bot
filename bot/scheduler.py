@@ -1,5 +1,6 @@
 """Background scheduler: publishes queued posts when their time comes."""
 import asyncio
+import functools
 import logging
 import uuid
 
@@ -176,27 +177,32 @@ async def _process_due_renewals(bot) -> None:
         idempotence_key = str(uuid.uuid4())
 
         try:
-            result = await asyncio.get_running_loop().run_in_executor(
-                None,
-                lambda: create_renewal_payment(
-                    user_id=user_id,
-                    plan_id=plan_id,
-                    period=period,
-                    amount_rub=amount_rub,
-                    yookassa_method_id=yookassa_method_id,
-                    idempotence_key=idempotence_key,
-                ),
-            )
-            await record_payment(
+            fn = functools.partial(
+                create_renewal_payment,
                 user_id=user_id,
-                yookassa_payment_id=result["payment_id"],
-                plan=plan_id,
+                plan_id=plan_id,
                 period=period,
                 amount_rub=amount_rub,
-                is_renewal=True,
+                yookassa_method_id=yookassa_method_id,
                 idempotence_key=idempotence_key,
             )
+            result = await asyncio.get_running_loop().run_in_executor(None, fn)
             await set_renewal_status(user_id, "pending")
+            try:
+                await record_payment(
+                    user_id=user_id,
+                    yookassa_payment_id=result["payment_id"],
+                    plan=plan_id,
+                    period=period,
+                    amount_rub=amount_rub,
+                    is_renewal=True,
+                    idempotence_key=idempotence_key,
+                )
+            except Exception as rec_err:
+                logger.error(
+                    "Payment created but record_payment failed for user %s payment %s: %s",
+                    user_id, result["payment_id"], rec_err,
+                )
             logger.info("Renewal payment initiated for user %s: %s", user_id, result["payment_id"])
         except Exception as e:
             logger.error("Failed to initiate renewal for user %s: %s", user_id, e)

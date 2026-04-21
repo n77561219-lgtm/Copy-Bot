@@ -21,11 +21,18 @@ async def test_auto_renewal_creates_payment_for_due_subs():
     with (
         patch("bot.scheduler.get_subscriptions_due_for_renewal", new_callable=AsyncMock, return_value=[_sub()]),
         patch("bot.scheduler.get_preference", new_callable=AsyncMock, return_value="month"),
-        patch("bot.scheduler.set_renewal_status", new_callable=AsyncMock),
-        patch("bot.scheduler.record_payment", new_callable=AsyncMock),
+        patch("bot.scheduler.set_renewal_status", new_callable=AsyncMock) as mock_status,
+        patch("bot.scheduler.record_payment", new_callable=AsyncMock) as mock_record,
         patch("bot.scheduler.create_renewal_payment", return_value={"payment_id": "yp_renewal_001"}),
     ):
         await _process_due_renewals(mock_bot)
+
+    mock_status.assert_called_once_with(123, "pending")
+    mock_record.assert_called_once()
+    call_kwargs = mock_record.call_args.kwargs
+    assert call_kwargs["user_id"] == 123
+    assert call_kwargs["plan"] == "basic"
+    assert call_kwargs["is_renewal"] is True
 
 
 @pytest.mark.asyncio
