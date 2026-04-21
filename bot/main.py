@@ -19,8 +19,11 @@ from bot.handlers import admin as admin_handler
 from bot.handlers import referral as referral_handler
 from bot.handlers import autopublish as autopublish_handler
 from bot.handlers import schedule as schedule_handler
-from bot.scheduler import scheduler_loop, renewal_notification_loop
+from bot.scheduler import scheduler_loop, renewal_notification_loop, auto_renewal_loop, expiry_loop
 from bot.subscription_middleware import SubscriptionMiddleware
+import aiohttp.web
+from bot.yookassa_client import init_yookassa
+from bot.webhook_server import create_webhook_app
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,6 +56,13 @@ class AuthMiddleware(BaseMiddleware):
 async def main() -> None:
     await init_db(settings.database_url)
 
+    # Инициализировать ЮКасса SDK
+    if settings.yookassa_shop_id and settings.yookassa_secret_key:
+        init_yookassa(settings.yookassa_shop_id, settings.yookassa_secret_key)
+        logger.info("ЮКасса configured for shop %s", settings.yookassa_shop_id)
+    else:
+        logger.warning("ЮКасса credentials not set — payment features disabled")
+
     bot = Bot(token=settings.telegram_bot_token)
     dp = Dispatcher(storage=MemoryStorage())
 
@@ -82,10 +92,23 @@ async def main() -> None:
     dp.include_router(topic_search_handler.router)
     dp.include_router(generate.router)
 
+    # Запустить aiohttp webhook-сервер
+    webhook_app = create_webhook_app(bot, settings.webhook_secret)
+    runner = aiohttp.web.AppRunner(webhook_app)
+    await runner.setup()
+    site = aiohttp.web.TCPSite(runner, "0.0.0.0", settings.webhook_port)
+    await site.start()
+    logger.info("Webhook server started on port %s", settings.webhook_port)
+
     logger.info("Bot started")
     asyncio.create_task(scheduler_loop(bot))
     asyncio.create_task(renewal_notification_loop(bot))
-    await dp.start_polling(bot)
+    asyncio.create_task(auto_renewal_loop(bot))
+    asyncio.create_task(expiry_loop(bot))
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await runner.cleanup()
 
 
 if __name__ == "__main__":
