@@ -1,6 +1,7 @@
 """Background scheduler: publishes queued posts when their time comes."""
 import asyncio
 import logging
+import uuid
 
 from aiogram import Bot
 
@@ -14,8 +15,15 @@ from bot.database import (
     get_expiring_subscriptions,
     mark_renewal_notified,
     get_preference,
+    get_subscriptions_due_for_renewal,
+    get_expired_paid_subscriptions,
+    expire_subscription,
+    record_payment,
+    set_renewal_status,
 )
 from bot.plans import get_plan, PLANS
+from bot.yookassa_client import create_renewal_payment
+from bot.keyboards import plans_kb
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +122,6 @@ async def _send_renewal_notifications(bot: Bot) -> None:
                     # Автосписание запустится в auto_renewal_loop — просто напоминаем
                     await bot.send_message(user_id, text, parse_mode="Markdown")
                 else:
-                    from bot.keyboards import plans_kb
                     await bot.send_message(
                         user_id, text,
                         parse_mode="Markdown",
@@ -134,3 +141,99 @@ def _as_utc(dt):
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+AUTO_RENEWAL_INTERVAL = 3600   # every hour
+EXPIRY_INTERVAL = 300          # every 5 minutes
+
+
+async def auto_renewal_loop(bot) -> None:
+    """Initiates auto-charge for subscriptions where next_renewal_at is due."""
+    logger.info("Auto-renewal loop started")
+    while True:
+        await asyncio.sleep(AUTO_RENEWAL_INTERVAL)
+        try:
+            await _process_due_renewals(bot)
+        except Exception as e:
+            logger.error("Auto-renewal loop error: %s", e)
+
+
+async def _process_due_renewals(bot) -> None:
+    subs = await get_subscriptions_due_for_renewal()
+    for sub in subs:
+        user_id = sub["user_id"]
+        yookassa_method_id = sub.get("yookassa_method_id")
+
+        if not yookassa_method_id:
+            logger.warning("No payment method for user %s, skipping renewal", user_id)
+            continue
+
+        plan_id = sub["plan"]
+        plan_data = PLANS[plan_id]
+        period = await get_preference(user_id, "last_period") or "month"
+        is_annual = period == "year"
+        amount_rub = plan_data["price_rub_year"] if is_annual else plan_data["price_rub"]
+        idempotence_key = str(uuid.uuid4())
+
+        try:
+            result = await asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: create_renewal_payment(
+                    user_id=user_id,
+                    plan_id=plan_id,
+                    period=period,
+                    amount_rub=amount_rub,
+                    yookassa_method_id=yookassa_method_id,
+                    idempotence_key=idempotence_key,
+                ),
+            )
+            await record_payment(
+                user_id=user_id,
+                yookassa_payment_id=result["payment_id"],
+                plan=plan_id,
+                period=period,
+                amount_rub=amount_rub,
+                is_renewal=True,
+                idempotence_key=idempotence_key,
+            )
+            await set_renewal_status(user_id, "pending")
+            logger.info("Renewal payment initiated for user %s: %s", user_id, result["payment_id"])
+        except Exception as e:
+            logger.error("Failed to initiate renewal for user %s: %s", user_id, e)
+
+
+async def expiry_loop(bot) -> None:
+    """Downgrades expired paid subscriptions to free every 5 minutes."""
+    logger.info("Expiry loop started")
+    while True:
+        await asyncio.sleep(EXPIRY_INTERVAL)
+        try:
+            await _process_expired_subscriptions(bot)
+        except Exception as e:
+            logger.error("Expiry loop error: %s", e)
+
+
+async def _process_expired_subscriptions(bot) -> None:
+    expired = await get_expired_paid_subscriptions()
+    for row in expired:
+        user_id = row["user_id"]
+        plan_id = row["plan"]
+        plan_data = PLANS.get(plan_id, PLANS["basic"])
+
+        await expire_subscription(user_id)
+        logger.info("Expired subscription for user %s (was %s)", user_id, plan_id)
+
+        auto_renew = await get_preference(user_id, "auto_renew") == "1"
+        if not auto_renew:
+            try:
+                await bot.send_message(
+                    user_id,
+                    f"📅 *Подписка закончилась*\n\n"
+                    f"Тариф {plan_data['emoji']} *{plan_data['name']}* истёк.\n"
+                    f"Доступ переведён на бесплатный тариф.\n\n"
+                    f"Оформить снова:",
+                    parse_mode="Markdown",
+                    reply_markup=plans_kb(),
+                )
+            except Exception as e:
+                logger.warning("Failed to notify user %s about expiry: %s", user_id, e)
