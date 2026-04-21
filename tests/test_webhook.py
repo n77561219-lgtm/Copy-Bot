@@ -85,6 +85,7 @@ async def test_webhook_idempotency_skips_already_succeeded():
         patch("bot.webhook_server.SecurityHelper") as MockSH,
         patch("bot.webhook_server.get_payment_by_yookassa_id", new_callable=AsyncMock, return_value={"status": "succeeded"}),
         patch("bot.webhook_server.activate_subscription", new_callable=AsyncMock) as mock_activate,
+        patch("bot.webhook_server.update_payment_status", new_callable=AsyncMock),
     ):
         MockSH.return_value.is_ip_trusted.return_value = True
         response = await handle_webhook(req, bot=mock_bot)
@@ -129,3 +130,39 @@ async def test_webhook_payment_canceled_renewal_expires_subscription():
 
     mock_expire.assert_called_once_with(123)
     mock_bot.send_message.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_webhook_payment_canceled_marks_card_inactive_on_card_expired():
+    from bot.webhook_server import handle_webhook
+    body = {
+        "type": "notification",
+        "event": "payment.canceled",
+        "object": {
+            "id": "yp_003",
+            "status": "canceled",
+            "amount": {"value": "390.00", "currency": "RUB"},
+            "payment_method": {"id": "pm_expired", "type": "bank_card", "saved": True},
+            "cancellation_details": {"reason": "card_expired"},
+            "metadata": {
+                "user_id": "123",
+                "plan": "basic",
+                "period": "month",
+                "is_renewal": "false",
+            },
+        },
+    }
+    req = _make_request(body)
+    mock_bot = AsyncMock()
+
+    with (
+        patch("bot.webhook_server.SecurityHelper") as MockSH,
+        patch("bot.webhook_server.get_payment_by_yookassa_id", new_callable=AsyncMock, return_value={"status": "pending", "is_renewal": False}),
+        patch("bot.webhook_server.update_payment_status", new_callable=AsyncMock),
+        patch("bot.webhook_server.mark_payment_method_inactive", new_callable=AsyncMock) as mock_mark,
+        patch("bot.webhook_server.plans_kb", return_value=MagicMock()),
+    ):
+        MockSH.return_value.is_ip_trusted.return_value = True
+        await handle_webhook(req, bot=mock_bot)
+
+    mock_mark.assert_called_once_with("pm_expired")

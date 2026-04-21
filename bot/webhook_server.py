@@ -1,7 +1,6 @@
 """aiohttp webhook server for ЮКасса payment notifications."""
 import json
 import logging
-from datetime import timezone
 
 import aiohttp.web
 from aiogram import Bot
@@ -26,7 +25,9 @@ logger = logging.getLogger(__name__)
 
 async def handle_webhook(request: aiohttp.web.Request, bot: Bot) -> aiohttp.web.Response:
     # 1. Проверить IP
-    ip = request.transport.get_extra_info("peername")[0]
+    transport = request.transport
+    peername = transport.get_extra_info("peername") if transport else None
+    ip = peername[0] if peername else ""
     if not SecurityHelper().is_ip_trusted(ip):
         logger.warning("Webhook rejected from untrusted IP: %s", ip)
         return aiohttp.web.Response(status=403, text="Forbidden")
@@ -62,6 +63,9 @@ async def _handle_payment_succeeded(obj, bot: Bot) -> None:
     payment_id = obj.id
     metadata = obj.metadata or {}
     user_id = int(metadata.get("user_id", 0))
+    if not user_id:
+        logger.error("Webhook payment.succeeded has no user_id in metadata: %s", payment_id)
+        return
     plan_id = metadata.get("plan", "basic")
     period = metadata.get("period", "month")
     is_renewal = metadata.get("is_renewal", "false") == "true"
@@ -117,6 +121,9 @@ async def _handle_payment_canceled(obj, bot: Bot) -> None:
     payment_id = obj.id
     metadata = obj.metadata or {}
     user_id = int(metadata.get("user_id", 0))
+    if not user_id:
+        logger.error("Webhook payment.canceled has no user_id in metadata: %s", payment_id)
+        return
     is_renewal = metadata.get("is_renewal", "false") == "true"
 
     existing = await get_payment_by_yookassa_id(payment_id)
