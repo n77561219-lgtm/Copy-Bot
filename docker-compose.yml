@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   bot:
     build: .
@@ -8,4 +6,18 @@ services:
     env_file: .env
     volumes:
       - ./data:/app/data
-    network_mode: host
+    expose:
+      - "8080"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.copybot.rule=Host(`bot.bizaineuro.ru`) && PathPrefix(`/yookassa/`)"
+      - "traefik.http.routers.copybot.tls=true"
+      - "traefik.http.routers.copybot.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.copybot.loadbalancer.server.port=8080"
+    networks:
+      - traefik_net
+
+networks:
+  traefik_net:
+    external: true
+    name: root_default
