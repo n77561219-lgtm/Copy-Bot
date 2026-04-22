@@ -11,7 +11,7 @@ from aiogram.types import (
 from aiogram.filters import Command
 
 from bot.yookassa_client import create_payment as yk_create_payment
-from bot.database import activate_subscription, get_subscription, log_usage, set_preference, get_preference, record_payment
+from bot.database import activate_subscription, get_subscription, log_usage, set_preference, get_preference, record_payment, get_default_payment_method, detach_payment_method
 from bot.keyboards import main_menu, plans_kb, checkout_kb, cancel_confirm_kb, refund_kb, payment_link_kb, MENU_PLANS
 from bot.plans import PLANS, PAID_PLANS
 from bot.config import settings
@@ -88,14 +88,22 @@ async def cmd_cancel(message: Message) -> None:
     auto_renew = await get_preference(user_id, "auto_renew") == "1"
     renew_status = "🔄 включено" if auto_renew else "⏸ отключено"
 
+    card = await get_default_payment_method(user_id)
+    card_line = ""
+    if card:
+        brand = card.get("brand") or card.get("type", "Карта")
+        last4 = card.get("last4", "****")
+        card_line = f"\n💳 Привязана карта: *{brand} •••• {last4}*"
+
     await message.answer(
         f"📋 *Твоя подписка*\n\n"
         f"{plan['emoji']} Тариф: *{plan['name']}*\n"
         f"📅 Действует до: *{expires}*\n"
-        f"Автопродление: {renew_status}\n\n"
+        f"Автопродление: {renew_status}"
+        f"{card_line}\n\n"
         f"После отмены автопродления доступ сохраняется до *{expires}*.",
         parse_mode="Markdown",
-        reply_markup=cancel_confirm_kb(has_auto_renew=auto_renew),
+        reply_markup=cancel_confirm_kb(has_auto_renew=auto_renew, has_card=bool(card)),
     )
 
 
@@ -123,6 +131,25 @@ async def cb_cancel_refund(callback: CallbackQuery) -> None:
         "💰 *Запрос возврата*\n\n"
         "Напишите в поддержку — рассмотрим в течение 5 рабочих дней.\n\n"
         "Укажите: Telegram-профиль, дату платежа, причину возврата.",
+        parse_mode="Markdown",
+        reply_markup=refund_kb(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "cancel:detach_card")
+async def cb_cancel_detach_card(callback: CallbackQuery) -> None:
+    """Detach saved card and disable auto-renewal."""
+    user_id = callback.from_user.id
+    await detach_payment_method(user_id)
+    await set_preference(user_id, "auto_renew", "0")
+    sub = await get_subscription(user_id)
+    expires = sub["expires_at"].strftime("%d.%m.%Y") if sub else "—"
+    await callback.message.edit_text(
+        f"✅ *Карта отвязана*\n\n"
+        f"Автопродление отключено. Доступ сохраняется до *{expires}*.\n"
+        f"Новых списаний не будет.\n\n"
+        f"При следующей оплате потребуется ввести карту заново.",
         parse_mode="Markdown",
         reply_markup=refund_kb(),
     )

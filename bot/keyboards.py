@@ -220,13 +220,18 @@ def checkout_kb(plan_id: str, period: str, auto_renew: bool) -> InlineKeyboardMa
     return b.as_markup()
 
 
-def cancel_confirm_kb(has_auto_renew: bool) -> InlineKeyboardMarkup:
-    """Shown after /cancel — options depend on auto-renew state."""
+def cancel_confirm_kb(has_auto_renew: bool, has_card: bool = False) -> InlineKeyboardMarkup:
+    """Shown after /cancel — options depend on auto-renew state and card binding."""
     b = InlineKeyboardBuilder()
     if has_auto_renew:
         b.row(InlineKeyboardButton(
             text="🔕 Отключить автопродление",
             callback_data="cancel:disable_renew",
+        ))
+    if has_card:
+        b.row(InlineKeyboardButton(
+            text="💳 Отвязать карту",
+            callback_data="cancel:detach_card",
         ))
     b.row(InlineKeyboardButton(
         text="💰 Запросить возврат",

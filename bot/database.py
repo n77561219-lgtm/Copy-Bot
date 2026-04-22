@@ -780,6 +780,22 @@ async def mark_payment_method_inactive(yookassa_method_id: str) -> None:
         )
 
 
+async def detach_payment_method(user_id: int) -> None:
+    """Unlink card: deactivate default payment method and clear subscription binding."""
+    async with get_pool().acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "UPDATE payment_methods SET is_active=FALSE, is_default=FALSE WHERE user_id=$1 AND is_default=TRUE",
+                user_id,
+            )
+            await conn.execute(
+                """UPDATE subscriptions
+                   SET payment_method_id=NULL, renewal_status='cancelled'
+                   WHERE user_id=$1""",
+                user_id,
+            )
+
+
 # ── Payments ──────────────────────────────────────────────────────────────────
 
 async def record_payment(
