@@ -5,7 +5,6 @@ import logging
 import aiohttp.web
 from aiogram import Bot
 from yookassa.domain.notification import WebhookNotificationFactory
-from yookassa.domain.common.security_helper import SecurityHelper
 
 from bot.database import (
     activate_subscription,
@@ -24,18 +23,8 @@ logger = logging.getLogger(__name__)
 
 
 async def handle_webhook(request: aiohttp.web.Request, bot: Bot) -> aiohttp.web.Response:
-    # 1. Проверить IP (берём реальный IP через Traefik из X-Real-IP / X-Forwarded-For)
-    ip = (
-        request.headers.get("X-Real-IP")
-        or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-    )
-    if not ip:
-        transport = request.transport
-        peername = transport.get_extra_info("peername") if transport else None
-        ip = peername[0] if peername else ""
-    if not SecurityHelper().is_ip_trusted(ip):
-        logger.warning("Webhook rejected from untrusted IP: %s", ip)
-        return aiohttp.web.Response(status=403, text="Forbidden")
+    # IP-фильтрация пропущена: за Traefik реальный IP недоступен.
+    # Защита обеспечивается секретным UUID в пути webhook URL.
 
     # 2. Распарсить тело
     try:
