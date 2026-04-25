@@ -1,9 +1,12 @@
 """Admin commands — only for bot owner."""
 from datetime import datetime, timezone
 
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 
 from bot.config import settings
 from bot.database import get_pool, get_admin_stats, get_token_stats, get_user_refund_summary
@@ -13,6 +16,23 @@ router = Router()
 PAID_PLANS = ("basic", "standard", "pro")
 
 
+class AdminRefundState(StatesGroup):
+    waiting_user_id = State()
+
+
+def _admin_kb() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.row(
+        InlineKeyboardButton(text="🔢 Токены", callback_data="adm:tokens"),
+        InlineKeyboardButton(text="👥 Пользователи", callback_data="adm:users"),
+    )
+    b.row(
+        InlineKeyboardButton(text="💰 Возврат", callback_data="adm:refund"),
+        InlineKeyboardButton(text="🔄 Обновить", callback_data="adm:refresh"),
+    )
+    return b.as_markup()
+
+
 def _is_admin(user_id: int) -> bool:
     allowed = settings.allowed_user_ids
     if allowed:
@@ -20,11 +40,7 @@ def _is_admin(user_id: int) -> bool:
     return str(user_id) == str(getattr(settings, "admin_user_id", ""))
 
 
-@router.message(Command("admin"))
-async def cmd_admin(message: Message) -> None:
-    if not _is_admin(message.from_user.id):
-        return
-
+async def _admin_stats_text() -> str:
     s = await get_admin_stats()
 
     text = (
@@ -54,14 +70,72 @@ async def cmd_admin(message: Message) -> None:
         f"Постов за 7 дней: {s['posts_7d']}\n"
         f"Изображений за 7 дней: {s['images_7d']}"
     )
-    await message.answer(text.replace(",", " "), parse_mode="Markdown")
+    return text.replace(",", " ")
 
 
-@router.message(Command("admin_tokens"))
-async def cmd_admin_tokens(message: Message) -> None:
+@router.message(Command("admin"))
+async def cmd_admin(message: Message) -> None:
     if not _is_admin(message.from_user.id):
         return
+    text = await _admin_stats_text()
+    await message.answer(text, parse_mode="Markdown", reply_markup=_admin_kb())
 
+
+@router.callback_query(F.data == "adm:refresh")
+async def cb_adm_refresh(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        return
+    text = await _admin_stats_text()
+    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=_admin_kb())
+    await callback.answer("Обновлено")
+
+
+@router.callback_query(F.data == "adm:tokens")
+async def cb_adm_tokens(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        return
+    text = await _tokens_text()
+    await callback.message.answer(text, parse_mode="Markdown")
+    await callback.answer()
+
+
+@router.callback_query(F.data == "adm:users")
+async def cb_adm_users(callback: CallbackQuery) -> None:
+    if not _is_admin(callback.from_user.id):
+        return
+    text = await _users_text()
+    await callback.message.answer(text, parse_mode="Markdown")
+    await callback.answer()
+
+
+@router.callback_query(F.data == "adm:refund")
+async def cb_adm_refund(callback: CallbackQuery, state: FSMContext) -> None:
+    if not _is_admin(callback.from_user.id):
+        return
+    await state.set_state(AdminRefundState.waiting_user_id)
+    await callback.message.answer("Введи user_id пользователя для расчёта возврата:")
+    await callback.answer()
+
+
+@router.message(AdminRefundState.waiting_user_id)
+async def adm_refund_user_id(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    if not message.text or not message.text.lstrip("-").isdigit():
+        await message.answer("Неверный user_id")
+        return
+    target_id = int(message.text.strip())
+    text = await _refund_text(target_id)
+    await message.answer(text, parse_mode="Markdown")
+
+
+def _as_utc_str(dt) -> str:
+    from bot.database import _as_utc
+    if dt is None:
+        return "—"
+    return _as_utc(dt).strftime("%d.%m.%Y %H:%M")
+
+
+async def _tokens_text() -> str:
     s = await get_token_stats()
 
     def _fmt(inp, out):
@@ -75,7 +149,7 @@ async def cmd_admin_tokens(message: Message) -> None:
             f"{a['inp']+a['out']:,} токенов, ~{a['cost']:.2f}₽".replace(",", " ")
         )
 
-    text = (
+    return (
         f"🔢 *Токены и расходы*\n"
         f"_{datetime.now(timezone.utc).strftime('%d.%m.%Y %H:%M')} UTC_\n\n"
         f"*За 24ч:*  {_fmt(s['in_24h'], s['out_24h'])}\n"
@@ -87,42 +161,24 @@ async def cmd_admin_tokens(message: Message) -> None:
         f"*По агентам (7 дней):*\n"
         + ("\n".join(agent_lines) if agent_lines else "  нет данных")
     )
-    await message.answer(text, parse_mode="Markdown")
 
 
-@router.message(Command("admin_refund"))
-async def cmd_admin_refund(message: Message) -> None:
-    """Calculate refund for a user: /admin_refund <user_id>"""
-    if not _is_admin(message.from_user.id):
-        return
-
-    parts = message.text.split()
-    if len(parts) < 2 or not parts[1].lstrip("-").isdigit():
-        await message.answer("Использование: /admin_refund <user_id>")
-        return
-
-    target_id = int(parts[1])
+async def _refund_text(target_id: int) -> str:
     s = await get_user_refund_summary(target_id)
-
     if not s["sub"]:
-        await message.answer(f"❌ Пользователь `{target_id}` не найден в базе.", parse_mode="Markdown")
-        return
+        return f"❌ Пользователь `{target_id}` не найден в базе."
 
-    sub     = s["sub"]
+    sub = s["sub"]
     payment = s["payment"]
-    counts  = s["counts"]
-
-    plan_label  = sub["plan"].capitalize()
+    counts = s["counts"]
+    plan_label = sub["plan"].capitalize()
     expires_str = _as_utc_str(sub["expires_at"])
-    paid_str    = _as_utc_str(payment["created_at"]) if payment else "—"
-    price_str   = f"{payment['amount_rub']} ₽" if payment else "—"
+    paid_str = _as_utc_str(payment["created_at"]) if payment else "—"
+    price_str = f"{payment['amount_rub']} ₽" if payment else "—"
 
-    # Usage breakdown
     action_labels = {
-        "post_generated": "Постов",
-        "plan_generated":  "Контент-планов",
-        "style_analyzed":  "Анализов стиля",
-        "post_edited":     "Правок",
+        "post_generated": "Постов", "plan_generated": "Контент-планов",
+        "style_analyzed": "Анализов стиля", "post_edited": "Правок",
         "image_generated": "Изображений",
     }
     usage_lines = []
@@ -136,7 +192,7 @@ async def cmd_admin_refund(message: Message) -> None:
     if not usage_lines:
         usage_lines = ["  нет использования"]
 
-    text = (
+    return (
         f"🧾 *Расчёт возврата — user `{target_id}`*\n\n"
         f"Тариф: *{plan_label}*\n"
         f"Оплата: {paid_str} — {price_str}\n"
@@ -146,21 +202,9 @@ async def cmd_admin_refund(message: Message) -> None:
         f"Использовано: *{s['used_rub']} ₽*\n\n"
         f"💰 *К возврату: {s['refund']} ₽*"
     )
-    await message.answer(text, parse_mode="Markdown")
 
 
-def _as_utc_str(dt) -> str:
-    from bot.database import _as_utc
-    if dt is None:
-        return "—"
-    return _as_utc(dt).strftime("%d.%m.%Y %H:%M")
-
-
-@router.message(Command("admin_users"))
-async def cmd_admin_users(message: Message) -> None:
-    if not _is_admin(message.from_user.id):
-        return
-
+async def _users_text() -> str:
     async with get_pool().acquire() as conn:
         rows = await conn.fetch(
             """
@@ -173,18 +217,16 @@ async def cmd_admin_users(message: Message) -> None:
             LIMIT 20
             """
         )
-
     if not rows:
-        await message.answer("Нет пользователей.")
-        return
+        return "Нет пользователей."
 
+    from bot.database import _as_utc
     now = datetime.now(timezone.utc)
     plan_emoji = {"free": "🆓", "trial": "⏳", "basic": "⭐", "standard": "💎", "pro": "🔥"}
     lines = ["👥 *Пользователи* (последние 20)\n"]
     for r in rows:
         expires = r["expires_at"]
         if expires:
-            from bot.database import _as_utc
             expires = _as_utc(expires)
             days = (expires - now).days
             days_str = f"{max(days, 0)}д"
@@ -194,8 +236,30 @@ async def cmd_admin_users(message: Message) -> None:
             active = False
         status = "✅" if active else "❌"
         emoji = plan_emoji.get(r["plan"], "❓")
-        lines.append(
-            f"{status} `{r['user_id']}` {emoji}{r['plan']} {days_str} · {r['post_count']} постов"
-        )
+        lines.append(f"{status} `{r['user_id']}` {emoji}{r['plan']} {days_str} · {r['post_count']} постов")
+    return "\n".join(lines)
 
-    await message.answer("\n".join(lines), parse_mode="Markdown")
+
+@router.message(Command("admin_tokens"))
+async def cmd_admin_tokens(message: Message) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+    await message.answer(await _tokens_text(), parse_mode="Markdown")
+
+
+@router.message(Command("admin_refund"))
+async def cmd_admin_refund(message: Message) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+    parts = message.text.split()
+    if len(parts) < 2 or not parts[1].lstrip("-").isdigit():
+        await message.answer("Использование: /admin_refund <user_id>")
+        return
+    await message.answer(await _refund_text(int(parts[1])), parse_mode="Markdown")
+
+
+@router.message(Command("admin_users"))
+async def cmd_admin_users(message: Message) -> None:
+    if not _is_admin(message.from_user.id):
+        return
+    await message.answer(await _users_text(), parse_mode="Markdown")
