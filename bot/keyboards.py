@@ -297,7 +297,10 @@ def plans_kb(current_plan: str = "", period: str = "month") -> InlineKeyboardMar
             callback_data=f"subscribe:{plan_id}:{period}",
         ))
 
-    b.row(InlineKeyboardButton(text="ℹ️ Моя подписка", callback_data="subscription_info"))
+    if current_plan and current_plan != "free":
+        b.row(InlineKeyboardButton(text="⚙️ Управление подпиской", callback_data="manage_subscription"))
+    else:
+        b.row(InlineKeyboardButton(text="ℹ️ Моя подписка", callback_data="subscription_info"))
     return b.as_markup()
 
 

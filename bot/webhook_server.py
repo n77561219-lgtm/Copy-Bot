@@ -99,13 +99,15 @@ async def _handle_payment_succeeded(obj, bot: Bot) -> None:
     period_label = "12 месяцев" if months == 12 else "1 месяц"
     action = "продлена" if is_renewal else "активирована"
 
+    manage_line = "\n\n_Управление подпиской и отвязка карты — /cancel_" if not is_renewal else ""
     await bot.send_message(
         user_id,
         f"✅ *Подписка {action}!*\n\n"
         f"{plan['emoji']} Тариф: *{plan['name']}*\n"
         f"📅 Период: *{period_label}*\n"
         f"📅 Действует до: *{expires}*\n\n"
-        f"Все функции тарифа доступны.",
+        f"Все функции тарифа доступны."
+        f"{manage_line}",
         parse_mode="Markdown",
     )
     logger.info("Subscription %s for user %s (plan=%s, renewal=%s)", action, user_id, plan_id, is_renewal)

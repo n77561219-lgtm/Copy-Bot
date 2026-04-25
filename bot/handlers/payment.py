@@ -66,17 +66,22 @@ async def cmd_refund(message: Message) -> None:
     )
 
 
-# ── /cancel ───────────────────────────────────────────────────────────────────
+# ── /cancel + manage_subscription ────────────────────────────────────────────
 
-@router.message(Command("cancel"))
-async def cmd_cancel(message: Message) -> None:
-    """Show subscription status with cancel/refund options."""
+@router.callback_query(F.data == "manage_subscription")
+async def cb_manage_subscription(callback: CallbackQuery) -> None:
+    """Open subscription management from plans keyboard."""
+    await _show_cancel_screen(callback.from_user.id, callback.message)
+    await callback.answer()
+
+
+async def _show_cancel_screen(user_id: int, target) -> None:
+    """Show subscription management screen. target is Message or CallbackQuery.message."""
     from datetime import datetime, timezone
-    user_id = message.from_user.id
     sub = await get_subscription(user_id)
 
     if not sub or sub["expires_at"] <= datetime.now(timezone.utc):
-        await message.answer(
+        await target.answer(
             "ℹ️ У тебя нет активной платной подписки.\n\n"
             "Для возврата или других вопросов — напиши в поддержку.",
             reply_markup=refund_kb(),
@@ -95,16 +100,25 @@ async def cmd_cancel(message: Message) -> None:
         last4 = card.get("last4", "****")
         card_line = f"\n💳 Привязана карта: *{brand} •••• {last4}*"
 
-    await message.answer(
-        f"📋 *Твоя подписка*\n\n"
+    next_renewal = sub.get("next_renewal_at")
+    renewal_line = f"\n📆 Следующее списание: *{next_renewal.strftime('%d.%m.%Y')}*" if next_renewal and auto_renew else ""
+
+    await target.answer(
+        f"📋 *Управление подпиской*\n\n"
         f"{plan['emoji']} Тариф: *{plan['name']}*\n"
         f"📅 Действует до: *{expires}*\n"
         f"Автопродление: {renew_status}"
+        f"{renewal_line}"
         f"{card_line}\n\n"
         f"После отмены автопродления доступ сохраняется до *{expires}*.",
         parse_mode="Markdown",
         reply_markup=cancel_confirm_kb(has_auto_renew=auto_renew, has_card=bool(card)),
     )
+
+
+@router.message(Command("cancel"))
+async def cmd_cancel(message: Message) -> None:
+    await _show_cancel_screen(message.from_user.id, message)
 
 
 @router.callback_query(F.data == "cancel:disable_renew")
